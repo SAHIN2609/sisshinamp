@@ -27,6 +27,9 @@ Layout SishhinDSPAudioProcessor::createLayout() {
     Layout p;
     p.add(std::make_unique<PC>(juce::ParameterID("amp",1),"AMP",juce::StringArray{"Sakura Clean","Taki Metal","Take Thick"},0));
     p.add(std::make_unique<PC>(juce::ParameterID("cab",1),"CAB",juce::StringArray{"1x12 Open","4x12 Modern","2x12 Oversized"},0));
+    const juce::StringArray micNames{"Dynamic 57","Ribbon 121","Condenser 87","Dynamic 421"};
+    p.add(std::make_unique<PC>(juce::ParameterID("micaType",1),"MIC A MODEL",micNames,0));
+    p.add(std::make_unique<PC>(juce::ParameterID("micbType",1),"MIC B MODEL",micNames,1));
     addF(p,"input","INPUT",-12,12,0,.1f);
     addF(p,"gate","GATE",-80,0,-60,.1f);
     addF(p,"trans","TRANSPOSE",-12,12,0,1);
@@ -90,6 +93,7 @@ float SishhinDSPAudioProcessor::get(const char* id) const noexcept {
 sdsp::Parameters SishhinDSPAudioProcessor::collectParameters() const noexcept {
     sdsp::Parameters p;
     p.amp=(int)get("amp");p.cab=(int)get("cab");
+    p.micTypeA=(int)get("micaType");p.micTypeB=(int)get("micbType");
     p.input=get("input");p.gate=get("gate");p.trans=get("trans");p.dbl=get("dbl");p.out=get("out");
     p.gain=get("gain");p.bass=get("bass");p.mid=get("mid");p.treb=get("treb");p.pres=get("pres");
     p.master=get("master");p.ao=get("ao");p.irlv=get("irlv");p.irlo=get("irlo");p.irhi=get("irhi");
@@ -123,14 +127,18 @@ void SishhinDSPAudioProcessor::processBlock(juce::AudioBuffer<float>& b,juce::Mi
     const auto p=collectParameters();
     engine.configure(p);
     const int chs=b.getNumChannels();
+    const int inputs=getTotalNumInputChannels();
+    if(chs==0 || inputs==0) { b.clear(); return; }
     const bool monoMode=get("stereo")<.5f;
     for(int i=0;i<b.getNumSamples();++i) {
-        float x0=b.getSample(0,i), x1=chs>1?b.getSample(1,i):x0;
-        if(monoMode) x0=x1=(x0+x1)*.5f;
-        const float y0=engine.processSample(0,x0,p);
-        b.setSample(0,i,y0);
+        float x0=b.getSample(0,i);
+        // A mono guitar input must feed both output channels at full level.
+        float x1=(inputs>1 && chs>1)?b.getSample(1,i):x0;
+        if(monoMode && inputs>1) x0=x1=(x0+x1)*.5f;
+        b.setSample(0,i,engine.processSample(0,x0,p));
         if(chs>1) b.setSample(1,i,engine.processSample(1,x1,p));
     }
+    for(int c=2;c<chs;++c) b.clear(c,0,b.getNumSamples());
 }
 void SishhinDSPAudioProcessor::processBlock(juce::AudioBuffer<double>& b,juce::MidiBuffer& midi) {
     // JUCE can request double precision. Convert through a reusable float buffer.
@@ -165,6 +173,11 @@ void SishhinDSPAudioProcessor::selectFactoryPreset(int ix) {
     ix=juce::jlimit(0,71,ix); const int a=ix/24,i=ix%24;
     currentProgram.store(ix);
     setParam(apvts,"amp",(float)a);setParam(apvts,"cab",(float)a);
+    setParam(apvts,"power",1.f);setParam(apvts,"gateOn",1.f);setParam(apvts,"eqOn",1.f);
+    setParam(apvts,"irOn",0.f);setParam(apvts,"ma",1.f);setParam(apvts,"mb",1.f);
+    setParam(apvts,"micaType",(float)((i/6)%4));setParam(apvts,"micbType",(float)((i/8+1)%4));
+    setParam(apvts,"stereo",0.f);setParam(apvts,"doubler",i%5==4?1.f:0.f);
+    setParam(apvts,"input",0.f);setParam(apvts,"out",0.f);setParam(apvts,"trans",0.f);
     // deterministic preset values, with audible differences
     const float q=(float)((i*17+a*7)%11)/10.f;
     setParam(apvts,"gain", (a==0?2.0f:a==1?7.3f:5.8f)+q*(a==0?2.4f:1.6f));
@@ -174,10 +187,23 @@ void SishhinDSPAudioProcessor::selectFactoryPreset(int ix) {
     setParam(apvts,"pres", a==1?6.7f:4.6f);
     setParam(apvts,"master",5.5f);setParam(apvts,"ao",5.f);
     setParam(apvts,"gate",a==1?-48.f:-64.f);
+    setParam(apvts,"p0On",i%7==0?1.f:0.f);
     setParam(apvts,"p1On",a==1?1.f:0.f);
     setParam(apvts,"p2On",a==2?1.f:0.f);
     setParam(apvts,"p3On",i>=12?1.f:0.f);
     setParam(apvts,"p4On",(i%6)>=4?1.f:0.f);
+    const float shape=((i*13+a*7)%17-8)*.34f;
+    for(int band=0;band<9;++band)
+        setParam(apvts,"e"+juce::String(band),((band+i)%3-1)*shape*.45f);
+    for(int pedal=0;pedal<5;++pedal) for(int dial=0;dial<3;++dial)
+        setParam(apvts,"p"+juce::String(pedal)+"_"+juce::String(dial),
+                 juce::jlimit(0.f,10.f,4.5f+(float)((i+pedal*3+dial*7)%9)*.46f));
+    setParam(apvts,"apos",.12f+.07f*(float)(i%5));
+    setParam(apvts,"bpos",.45f+.06f*(float)(i%5));
+    setParam(apvts,"adist",.04f+.04f*(float)(i%7));
+    setParam(apvts,"bdist",.15f+.05f*(float)(i%6));
+    setParam(apvts,"alv",0.f);setParam(apvts,"blv",-3.f);
+    setParam(apvts,"apan",-.3f);setParam(apvts,"bpan",.3f);
 }
 void SishhinDSPAudioProcessor::getStateInformation(juce::MemoryBlock& dest) {
     auto state=apvts.copyState();
@@ -260,6 +286,10 @@ bool SishhinDSPAudioProcessor::saveUserPreset(const juce::String& name) {
     juce::MemoryBlock state;
     getStateInformation(state);
     return state.getSize()>0 && presetFolder().getChildFile(filename).replaceWithData(state.getData(),state.getSize());
+}
+bool SishhinDSPAudioProcessor::deleteUserPreset(const juce::String& name) {
+    const auto file=presetFolder().getChildFile(juce::File::createLegalFileName(name)+".sdsp");
+    return file.existsAsFile() && file.deleteFile();
 }
 bool SishhinDSPAudioProcessor::loadUserPreset(const juce::String& name) {
     auto file=presetFolder().getChildFile(juce::File::createLegalFileName(name)+".sdsp");
