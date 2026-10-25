@@ -60,6 +60,7 @@ void AmpEngine::configure(const Parameters& p) noexcept {
     const float master=(.05f+.095f*clamp(p.master,0.f,10.f))*(.1f+.09f*clamp(p.ao,0.f,10.f));
     outputGain=master*decibels(p.out);
     irGain=decibels(p.irlv);
+    roomGainA=decibels(p.arm);roomGainB=decibels(p.brm);
     gateThreshold=decibels(p.gate);
     const float gains[2]={decibels(p.alv)*(.9f-.32f*p.apos),decibels(p.blv)*(.9f-.32f*p.bpos)};
     const float pans[2]={p.apan,p.bpan};
@@ -185,6 +186,8 @@ float AmpEngine::processSample(int chIndex,float x,const Parameters& p) noexcept
     float a=p.ma?ch.micALow.tick(ch.micAHigh.tick(x))*gains[0]:0.f;
     float b=p.mb?ch.micBLow.tick(ch.micBHigh.tick(x))*gains[1]:0.f;
     x=(a+b)*(p.ma&&p.mb?.60f:1.f);
+    const float roomSend = (p.roomAOn ? a*roomGainA : 0.f)
+                         + (p.roomBOn ? b*roomGainB : 0.f);
     if(p.irOn && impulseLength>0) { // limited first 256 IR taps, zero allocation in audio callback
         ch.irHistory[static_cast<size_t>(ch.irPos)]=x;
         float sum=0;
@@ -203,11 +206,16 @@ float AmpEngine::processSample(int chIndex,float x,const Parameters& p) noexcept
         const float mix=p.pedals[3][2]*.055f;
         x=runDelay(ch.echo,ch.echoPos,x,time,fb,mix);
     }
-    if(p.pedalOn[4]) {
-        const float decay=p.pedals[4][0]/10.f;
+    if(p.pedalOn[4] || p.roomAOn || p.roomBOn) {
+        const float decay=p.pedalOn[4] ? p.pedals[4][0]/10.f : .35f;
         const float time=80.f+decay*120.f;
-        const float reverb=runDelay(ch.reverb,ch.reverbPos,x,time,.25f+decay*.45f,p.pedals[4][2]*.047f);
-        x=reverb;
+        const float feedback=.25f+decay*.45f;
+        const float wet=runDelay(ch.reverb,ch.reverbPos,
+                                 (p.pedalOn[4]?x:0.f)+roomSend,
+                                 time,feedback,1.f);
+        const float haloMix=p.pedalOn[4]?clamp(p.pedals[4][2]*.047f,0.f,.47f):0.f;
+        x=x*(1.f-haloMix)+wet*haloMix;
+        if(p.roomAOn || p.roomBOn) x+=wet*.22f;
     }
     x*=outputGain;
     return std::isfinite(x)?clamp(x,-1.3f,1.3f):0.f;
