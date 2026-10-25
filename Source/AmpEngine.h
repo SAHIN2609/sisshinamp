@@ -13,7 +13,7 @@ constexpr float pi = 3.14159265358979323846f;
 constexpr int maxIR = 768;
 
 struct Parameters {
-    int amp = 0, cab = 0;
+    int amp = 0, cab = 0, micTypeA = 0, micTypeB = 1;
     float input = 0, gate = -60, trans = 0, dbl = 12, out = 0;
     float gain = 5, bass = 5, mid = 5, treb = 5, pres = 5, master = 5, ao = 5;
     float irlv = 0, irlo = 80, irhi = 12000;
@@ -72,6 +72,9 @@ private:
     float sampleRate = 48000;
     std::array<float,maxIR> impulse{};
     int impulseLength=0;
+    // Derive block-level gains once; avoid expensive per-sample dB conversion.
+    float inputGain=1.f, outputGain=1.f, irGain=1.f, gateThreshold=.001f;
+    float micGainLeft[2] {1.f,1.f}, micGainRight[2] {1.f,1.f};
     float pitchShift(Channel& ch, float x, float semitones) noexcept;
     float runDelay(std::vector<float>& buffer, size_t& pos, float x, float ms, float feedback, float mix) noexcept;
 };
