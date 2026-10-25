@@ -32,16 +32,19 @@ private:
     };
     SishhinDSPAudioProcessor& processor;
     int currentTab=1;
-    juce::Image logo;
+    juce::Image logo, logoDark, logoLight;
     std::vector<std::unique_ptr<KnobControl>> knobs;
     std::vector<std::unique_ptr<ToggleControl>> toggles;
     std::array<juce::TextButton,5> tabButtons{{juce::TextButton{"PRE FX"},juce::TextButton{"AMP"},juce::TextButton{"CAB"},juce::TextButton{"EQ"},juce::TextButton{"POST FX"}}};
     std::array<juce::TextButton,3> ampButtons{{juce::TextButton{"Sakura  CLEAN"},juce::TextButton{"Taki  METAL"},juce::TextButton{"Take  THICK"}}};
     std::array<juce::TextButton,3> cabButtons{{juce::TextButton{"1 x 12  OPEN"},juce::TextButton{"4 x 12  MODERN"},juce::TextButton{"2 x 12  OVERSIZED"}}};
     juce::ComboBox presetCombo;
-    juce::TextButton previous{"←"},next{"→"},save{"SAVE"},saveAs{"SAVE AS..."};
-    juce::TextButton loadIR{"LOAD IR"},clearIRButton{"CLEAR"},resetEQ{"RESET"};
-    juce::Label irInfo;
+    juce::TextButton previous{"←"},next{"→"},save{"SAVE"},saveAs{"SAVE AS..."},deletePreset{"DELETE"};
+    juce::TextButton loadIR{"LOAD IR"},clearIRButton{"CLEAR"},resetEQ{"RESET"},loadLogo{"LOAD LOGO"};
+    std::array<juce::ComboBox,2> micSelectors;
+    std::array<std::unique_ptr<APVTS::ComboBoxAttachment>,2> micAttachments;
+    juce::Label irInfo, statusInfo;
+    int lastPaintAmp=-1, lastPaintCab=-1;
     std::unique_ptr<juce::FileChooser> chooser;
     juce::StringArray userPresets;
     int lastFactoryProgram=0;
@@ -59,5 +62,7 @@ private:
     void drawPedals(juce::Graphics&,bool post);
     void drawEQ(juce::Graphics&);
     void drawFrame(juce::Graphics&);
+    void selectUserPreset(const juce::String& name);
+    void updateIRLabel();
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(SishhinDSPAudioProcessorEditor)
 };
