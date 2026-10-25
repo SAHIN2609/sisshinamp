@@ -55,7 +55,7 @@ void SishhinDSPAudioProcessorEditor::Style::drawButtonBackground(juce::Graphics&
 }
 SishhinDSPAudioProcessorEditor::KnobControl::KnobControl(APVTS& tree,const juce::String& id,
     const juce::String& title,juce::String onPage):page(std::move(onPage)) {
-    dial.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
+    dial.setSliderStyle(page=="eq" ? juce::Slider::LinearVertical : juce::Slider::RotaryHorizontalVerticalDrag);
     dial.setTextBoxStyle(juce::Slider::NoTextBox,false,0,0);
     dial.setRotaryParameters(juce::degreesToRadians(225.f),juce::degreesToRadians(495.f),true);
     dial.setPopupDisplayEnabled(true,true,this);
@@ -79,7 +79,26 @@ SishhinDSPAudioProcessorEditor::ToggleControl::ToggleControl(APVTS&tree,const ju
 SishhinDSPAudioProcessorEditor::SishhinDSPAudioProcessorEditor(SishhinDSPAudioProcessor& p)
     :juce::AudioProcessorEditor(&p),processor(p) {
     setLookAndFeel(&style);
+    // Use the logo extracted from the HTML, or a locally saved PNG.
     logo=juce::ImageFileFormat::loadFrom(BinaryData::sishhin_logo_png,BinaryData::sishhin_logo_pngSize);
+    const auto savedLogo=juce::File::getSpecialLocation(juce::File::userDocumentsDirectory)
+                         .getChildFile("SishhinDSP").getChildFile("logo.png");
+    if(savedLogo.existsAsFile()) {
+        const auto custom=juce::ImageFileFormat::loadFrom(savedLogo);
+        if(custom.isValid()) logo=custom;
+    }
+    const auto tintLogo=[this](juce::Colour tint) {
+        if(!logo.isValid()) return juce::Image{};
+        juce::Image result(juce::Image::ARGB,logo.getWidth(),logo.getHeight(),true);
+        juce::Image::BitmapData dst(result,juce::Image::BitmapData::writeOnly);
+        juce::Image::BitmapData src(logo,juce::Image::BitmapData::readOnly);
+        for(int y=0;y<logo.getHeight();++y)
+            for(int x=0;x<logo.getWidth();++x)
+                dst.setPixelColour(x,y,tint.withAlpha(src.getPixelColour(x,y).getAlpha()));
+        return result;
+    };
+    logoDark=tintLogo(ink);
+    logoLight=tintLogo(juce::Colour(0xfff4f7ff));
     const auto mk=[this](const juce::String& id,const juce::String& name,const juce::String& page){makeKnob(id,name,page);};
     // Original top-bar controls
     for(auto item:std::initializer_list<std::pair<const char*,const char*>>{{"input","INPUT"},{"gate","GATE"},{"trans","TRANSPOSE"},{"dbl","DOUBLER"},{"out","OUTPUT"}})
@@ -117,15 +136,41 @@ SishhinDSPAudioProcessorEditor::SishhinDSPAudioProcessorEditor(SishhinDSPAudioPr
     presetCombo.onChange=[this]{
         const int id=presetCombo.getSelectedId();
         if(id>0&&id<=72)processor.selectFactoryPreset(id-1);
-        else if(id>=1000&&id<1000+userPresets.size())processor.loadUserPreset(userPresets[id-1000]);
+        else if(id>=1000&&id<1000+userPresets.size()) {
+            if(!processor.loadUserPreset(userPresets[id-1000]))
+                statusInfo.setText("COULD NOT LOAD PRESET",juce::dontSendNotification);
+            else {statusInfo.setText("LOADED: "+userPresets[id-1000],juce::dontSendNotification);updateIRLabel();}
+        }
+        deletePreset.setEnabled(id>=1000);
     };
-    for(auto* b:{&previous,&next,&save,&saveAs,&loadIR,&clearIRButton,&resetEQ})addAndMakeVisible(*b);
+    for(auto* b:{&previous,&next,&save,&saveAs,&deletePreset,&loadIR,&clearIRButton,&resetEQ,&loadLogo})addAndMakeVisible(*b);
+    for(int i=0;i<2;++i) {
+        auto& combo=micSelectors[(size_t)i];
+        combo.addItem("Dynamic 57",1);combo.addItem("Ribbon 121",2);
+        combo.addItem("Condenser 87",3);combo.addItem("Dynamic 421",4);
+        addAndMakeVisible(combo);
+        micAttachments[(size_t)i]=std::make_unique<APVTS::ComboBoxAttachment>(
+            processor.apvts,i==0?"micaType":"micbType",combo);
+    }
+    addAndMakeVisible(statusInfo);
+    statusInfo.setColour(juce::Label::textColourId,grey);
+    statusInfo.setJustificationType(juce::Justification::centredLeft);
+    statusInfo.setText("READY",juce::dontSendNotification);
     previous.onClick=[this]{processor.selectFactoryPreset((processor.getCurrentProgram()+71)%72);presetCombo.setSelectedId(processor.getCurrentProgram()+1,juce::dontSendNotification);};
     next.onClick=[this]{processor.selectFactoryPreset((processor.getCurrentProgram()+1)%72);presetCombo.setSelectedId(processor.getCurrentProgram()+1,juce::dontSendNotification);};
     save.onClick=[this]{
         const int id=presetCombo.getSelectedId();
         if(id>=1000&&id<1000+userPresets.size()){processor.saveUserPreset(userPresets[id-1000]);}
         else saveAs.triggerClick();
+    };
+    deletePreset.onClick=[this]{
+        const int selected=presetCombo.getSelectedId();
+        if(selected<1000 || selected>=1000+userPresets.size()) return;
+        const auto name=userPresets[selected-1000];
+        if(processor.deleteUserPreset(name)) {
+            refreshPresets();
+            statusInfo.setText("DELETED: "+name,juce::dontSendNotification);
+        }
     };
     saveAs.onClick=[this]{
         auto root=juce::File::getSpecialLocation(juce::File::userDocumentsDirectory).getChildFile("SishhinDSP").getChildFile("Presets");
@@ -137,8 +182,12 @@ SishhinDSPAudioProcessorEditor::SishhinDSPAudioProcessorEditor(SishhinDSPAudioPr
                 if(safe==nullptr)return;
                 const auto file=fc.getResult();
                 if(file!=juce::File()){
-                    safe->processor.saveUserPreset(file.getFileNameWithoutExtension());
-                    safe->refreshPresets();
+                    const auto name=file.getFileNameWithoutExtension();
+                    if(safe->processor.saveUserPreset(name)) {
+                        safe->refreshPresets();
+                        safe->selectUserPreset(name);
+                        safe->statusInfo.setText("SAVED: "+name,juce::dontSendNotification);
+                    } else safe->statusInfo.setText("PRESET SAVE FAILED",juce::dontSendNotification);
                 }
             });
     };
@@ -152,20 +201,49 @@ SishhinDSPAudioProcessorEditor::SishhinDSPAudioProcessorEditor(SishhinDSPAudioPr
                 if(file!=juce::File()) {
                     juce::String error;
                     if(!safe->processor.loadIRFile(file,error))safe->irInfo.setText(error,juce::dontSendNotification);
-                    else safe->irInfo.setText(file.getFileName(),juce::dontSendNotification);
+                    else safe->updateIRLabel();
                 }
             });
     };
-    clearIRButton.onClick=[this]{processor.clearIR();setParameter("irOn",0);irInfo.setText("NO IR LOADED",juce::dontSendNotification);};
+    clearIRButton.onClick=[this]{processor.clearIR();setParameter("irOn",0);updateIRLabel();};
+    loadLogo.onClick=[this]{
+        chooser=std::make_unique<juce::FileChooser>("Load a PNG logo",juce::File(),"*.png");
+        juce::Component::SafePointer<SishhinDSPAudioProcessorEditor> safe(this);
+        chooser->launchAsync(juce::FileBrowserComponent::openMode|juce::FileBrowserComponent::canSelectFiles,
+            [safe](const juce::FileChooser& fc){
+                if(safe==nullptr)return;
+                const auto file=fc.getResult();
+                if(file==juce::File())return;
+                auto image=juce::ImageFileFormat::loadFrom(file);
+                if(!image.isValid()) {safe->statusInfo.setText("INVALID LOGO",juce::dontSendNotification);return;}
+                auto folder=juce::File::getSpecialLocation(juce::File::userDocumentsDirectory).getChildFile("SishhinDSP");
+                folder.createDirectory();
+                if(!file.copyFileTo(folder.getChildFile("logo.png"))) {
+                    safe->statusInfo.setText("LOGO COULD NOT BE SAVED",juce::dontSendNotification);
+                }
+                safe->logo=image;
+                auto recolour=[&](juce::Colour tint){
+                    juce::Image im(juce::Image::ARGB,image.getWidth(),image.getHeight(),true);
+                    juce::Image::BitmapData source(image,juce::Image::BitmapData::readOnly);
+                    juce::Image::BitmapData target(im,juce::Image::BitmapData::writeOnly);
+                    for(int y=0;y<image.getHeight();++y)for(int x=0;x<image.getWidth();++x)
+                        target.setPixelColour(x,y,tint.withAlpha(source.getPixelColour(x,y).getAlpha()));
+                    return im;
+                };
+                safe->logoDark=recolour(ink);
+                safe->logoLight=recolour(juce::Colours::white);
+                safe->repaint();
+            });
+    };
     resetEQ.onClick=[this]{for(int i=0;i<9;++i)setParameter("e"+juce::String(i),0.f);};
     addAndMakeVisible(irInfo);irInfo.setJustificationType(juce::Justification::centred);
     irInfo.setColour(juce::Label::textColourId,grey);
-    irInfo.setText("NO IR LOADED",juce::dontSendNotification);
+    updateIRLabel();
     setSize(1060,790);
     setResizable(true,true);
     setResizeLimits(950,720,1320,1000);
     refreshPresets();displayTab(1);
-    startTimerHz(15);
+    startTimerHz(10);
 }
 SishhinDSPAudioProcessorEditor::~SishhinDSPAudioProcessorEditor(){setLookAndFeel(nullptr);}
 void SishhinDSPAudioProcessorEditor::makeKnob(const juce::String&id,const juce::String& name,const juce::String& page) {
@@ -175,6 +253,14 @@ void SishhinDSPAudioProcessorEditor::makeKnob(const juce::String&id,const juce::
 void SishhinDSPAudioProcessorEditor::makeToggle(const juce::String&id,const juce::String&name,const juce::String&page){
     auto t=std::make_unique<ToggleControl>(processor.apvts,id,name,page);
     addAndMakeVisible(*t);toggles.push_back(std::move(t));
+}
+void SishhinDSPAudioProcessorEditor::updateIRLabel(){
+    const auto name=processor.currentIRName();
+    irInfo.setText(name.isEmpty()?"NO IR LOADED":name,juce::dontSendNotification);
+}
+void SishhinDSPAudioProcessorEditor::selectUserPreset(const juce::String& name){
+    const int index=userPresets.indexOf(name);
+    if(index>=0) presetCombo.setSelectedId(1000+index,juce::dontSendNotification);
 }
 void SishhinDSPAudioProcessorEditor::setParameter(const juce::String& id,float v) {
     if(auto* p=processor.apvts.getParameter(id)){
@@ -189,18 +275,22 @@ void SishhinDSPAudioProcessorEditor::refreshPresets(){
     userPresets=processor.userPresetNames();
     for(int i=0;i<userPresets.size();++i)presetCombo.addItem("USER  ·  "+userPresets[i],1000+i);
     presetCombo.setSelectedId(processor.getCurrentProgram()+1,juce::dontSendNotification);
+    lastFactoryProgram=processor.getCurrentProgram();
 }
 void SishhinDSPAudioProcessorEditor::timerCallback(){
     const int program=processor.getCurrentProgram();
     if(program!=lastFactoryProgram){presetCombo.setSelectedId(program+1,juce::dontSendNotification);lastFactoryProgram=program;}
     const int amp=(int)param(processor,"amp"),cab=(int)param(processor,"cab");
-    for(int i=0;i<3;++i){ampButtons[(size_t)i].setToggleState(amp==i,juce::dontSendNotification);
-                         cabButtons[(size_t)i].setToggleState(cab==i,juce::dontSendNotification);}
-    repaint();
+    if(amp!=lastPaintAmp || cab!=lastPaintCab) {
+        lastPaintAmp=amp;lastPaintCab=cab;
+        for(int i=0;i<3;++i){ampButtons[(size_t)i].setToggleState(amp==i,juce::dontSendNotification);
+                             cabButtons[(size_t)i].setToggleState(cab==i,juce::dontSendNotification);}
+        repaint();
+    }
 }
 void SishhinDSPAudioProcessorEditor::displayTab(int tab){
     currentTab=juce::jlimit(0,4,tab);
-    for(int i=0;i<5;++i)tabButtons[(size_t)i].setToggleState(i==tab,juce::dontSendNotification);
+    for(int i=0;i<5;++i)tabButtons[(size_t)i].setToggleState(i==currentTab,juce::dontSendNotification);
     resized();repaint();
 }
 void SishhinDSPAudioProcessorEditor::resized(){
@@ -224,8 +314,8 @@ void SishhinDSPAudioProcessorEditor::resized(){
         else if(k.page=="amp")put(k,248.f+ai++*83.f,421,65,77);
         else if(k.page=="mica")put(k,54.f+(ci%2)*91.f,277.f+(ci/2)*106.f,73,85),++ci;
         else if(k.page=="micb")put(k,825.f+((ci-4)%2)*91.f,277.f+((ci-4)/2)*106.f,73,85),++ci;
-        else if(k.page=="cab")put(k,385.f+ir++*102.f,666,78,76);
-        else if(k.page=="eq")put(k,132.f+eq++*90.f,355,70,108);
+        else if(k.page=="cab")put(k,385.f+ir++*102.f,679,78,64);
+        else if(k.page=="eq")put(k,132.f+eq++*90.f,326,70,195);
         else if(k.page=="pre")put(k,108.f+(pre/3)*295.f+(pre%3)*87.f,340,71,86),++pre;
         else if(k.page=="post")put(k,253.f+(post/3)*314.f+(post%3)*87.f,340,71,86),++post;
     }
@@ -251,18 +341,25 @@ void SishhinDSPAudioProcessorEditor::resized(){
     }
     put(presetCombo,356,108,390,35);
     put(previous,356,150,30,25);put(next,392,150,30,25);
-    put(save,430,150,75,25);put(saveAs,511,150,108,25);
+    put(save,430,150,75,25);put(saveAs,511,150,108,25);put(deletePreset,624,150,78,25);
+    deletePreset.setEnabled(presetCombo.getSelectedId()>=1000);
     for(int i=0;i<3;++i) {
         ampButtons[(size_t)i].setVisible(currentTab==1);
         cabButtons[(size_t)i].setVisible(currentTab==2);
         put(ampButtons[(size_t)i],262+i*182.f,568,176,58);
-        put(cabButtons[(size_t)i],335+i*132.f,595,125,49);
+        put(cabButtons[(size_t)i],335+i*132.f,580,125,41);
     }
     loadIR.setVisible(currentTab==2);
     clearIRButton.setVisible(currentTab==2);
     irInfo.setVisible(currentTab==2);
-    put(loadIR,490,614,102,30);put(clearIRButton,601,614,80,30);put(irInfo,287,650,445,24);
+    for(int i=0;i<2;++i){
+        micSelectors[(size_t)i].setVisible(currentTab==2);
+        put(micSelectors[(size_t)i], i==0?46.f:821.f,257,188,30);
+    }
+    put(loadIR,498,636,102,27);put(clearIRButton,606,636,80,27);put(irInfo,298,658,390,22);
     resetEQ.setVisible(currentTab==3);put(resetEQ,685,264,105,31);
+    put(loadLogo,739,748,105,29);
+    put(statusInfo,38,748,500,29);
 }
 
 void SishhinDSPAudioProcessorEditor::drawFrame(juce::Graphics&g){
@@ -321,15 +418,9 @@ void SishhinDSPAudioProcessorEditor::drawAmp(juce::Graphics&g,juce::Rectangle<fl
     if(logo.isValid()) {
         g.saveState();
         const auto target=logoBox.toNearestInt();
-        juce::Image tinted(juce::Image::ARGB,logo.getWidth(),logo.getHeight(),true);
-        juce::Image::BitmapData dst(tinted,juce::Image::BitmapData::writeOnly);
-        juce::Image::BitmapData src(logo,juce::Image::BitmapData::readOnly);
-        const auto tint=model==0?ink:juce::Colour(0xfff4f7ff);
-        for(int y=0;y<logo.getHeight();++y)for(int x=0;x<logo.getWidth();++x){
-            const auto px=src.getPixelColour(x,y);
-            dst.setPixelColour(x,y,tint.withAlpha(px.getAlpha()/255.f));
-        }
-        g.drawImageWithin(tinted,target.getX(),target.getY(),target.getWidth(),target.getHeight(),juce::RectanglePlacement::centred);
+        const auto& tinted=model==0?logoDark:logoLight;
+        if(tinted.isValid())
+            g.drawImageWithin(tinted,target.getX(),target.getY(),target.getWidth(),target.getHeight(),juce::RectanglePlacement::centred);
         g.restoreState();
     } else {
         caption(g,"失神",logoBox,small?28:40,model==0?ink:juce::Colours::white);
@@ -395,8 +486,8 @@ void SishhinDSPAudioProcessorEditor::paint(juce::Graphics&g){
     } else if(currentTab==2) {
         drawAmp(g,{362,240,334,107},amp,true);
         drawCabinet(g,{383,349,295,236},(int)param(processor,"cab"));
-        roundedPanel(g,{220,653,600,102},cream,12);
-        caption(g,"IR LOADER",{230,660,160,32},13,ink);
+        roundedPanel(g,{220,631,600,112},cream,12);
+        caption(g,"IR LOADER",{230,634,160,27},13,ink);
         caption(g,"MIC A",{43,216,190,30},14,ink);
         caption(g,"MIC B",{816,216,190,30},14,ink);
     } else if(currentTab==3) drawEQ(g);
