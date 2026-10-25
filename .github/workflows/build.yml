@@ -1,0 +1,45 @@
+name: Build SishhinDSP VST3 and Standalone
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-2022
+            platform: Windows
+          - os: macos-15
+            platform: macOS
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Configure
+        shell: bash
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DSDSP_BUILD_PLUGIN=ON -DSDSP_BUILD_TESTS=ON
+      - name: Build
+        shell: bash
+        run: cmake --build build --config Release --parallel 3
+      - name: Run DSP Tests
+        shell: bash
+        run: ctest --test-dir build -C Release --output-on-failure
+      - name: Stage binaries
+        shell: bash
+        run: |
+          mkdir -p dist
+          cp -R build/SishhinDSP_artefacts/Release/VST3/. dist/ 2>/dev/null || true
+          cp -R build/SishhinDSP_artefacts/Release/Standalone/. dist/ 2>/dev/null || true
+          cp -R build/SishhinDSP_artefacts/VST3/. dist/ 2>/dev/null || true
+          cp -R build/SishhinDSP_artefacts/Standalone/. dist/ 2>/dev/null || true
+          find dist -type f -o -type d | head -80
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        with:
+          name: SishhinDSP-${{ matrix.platform }}
+          path: dist/
+          if-no-files-found: error
