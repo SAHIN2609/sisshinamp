@@ -56,6 +56,17 @@ void AmpEngine::prepare(double sr, int /*maxBlockSize*/) {
 }
 void AmpEngine::reset() noexcept { for(auto& c:channels) c.reset(); }
 void AmpEngine::configure(const Parameters& p) noexcept {
+    inputGain=decibels(p.input);
+    const float master=(.05f+.095f*clamp(p.master,0.f,10.f))*(.1f+.09f*clamp(p.ao,0.f,10.f));
+    outputGain=master*decibels(p.out);
+    irGain=decibels(p.irlv);
+    gateThreshold=decibels(p.gate);
+    const float gains[2]={decibels(p.alv)*(.9f-.32f*p.apos),decibels(p.blv)*(.9f-.32f*p.bpos)};
+    const float pans[2]={p.apan,p.bpan};
+    for(int i=0;i<2;++i) {
+        micGainLeft[i]=gains[i]*clamp(1.f-pans[i]*.65f,.2f,1.7f);
+        micGainRight[i]=gains[i]*clamp(1.f+pans[i]*.65f,.2f,1.7f);
+    }
     constexpr float freqs[]={65,125,250,500,1000,2000,4000,8000,16000};
     const float lp[]={9600.f,6700.f,4900.f};
     const float hp[]={65.f,90.f,72.f};
@@ -71,11 +82,14 @@ void AmpEngine::configure(const Parameters& p) noexcept {
         c.cabinetLow.highpass(sampleRate,std::max(25.f,p.irlo));
         c.irHigh.lowpass(sampleRate, p.irhi);
         c.irLow.highpass(sampleRate,p.irlo);
-        // Microphone distance/position affect high-frequency rolloff and proximity body.
-        c.micAHigh.lowpass(sampleRate, clamp(9000.f-p.adist*5200.f-p.apos*1800.f,1600.f,12000.f));
-        c.micALow.highpass(sampleRate, clamp(45.f+p.adist*95.f,30.f,400.f));
-        c.micBHigh.lowpass(sampleRate, clamp(7500.f-p.bdist*4500.f-p.bpos*1800.f,1600.f,12000.f));
-        c.micBLow.highpass(sampleRate, clamp(60.f+p.bdist*100.f,30.f,400.f));
+        // Four microphone responses matching the original HTML options.
+        constexpr float micTop[]={7900.f,5400.f,12000.f,8800.f};
+        constexpr float micBottom[]={65.f,42.f,85.f,70.f};
+        const int ia=std::max(0,std::min(3,p.micTypeA)),ib=std::max(0,std::min(3,p.micTypeB));
+        c.micAHigh.lowpass(sampleRate,clamp(micTop[ia]-p.adist*4400.f-p.apos*1700.f,1500.f,15000.f));
+        c.micALow.highpass(sampleRate,clamp(micBottom[ia]+p.adist*95.f,30.f,400.f));
+        c.micBHigh.lowpass(sampleRate,clamp(micTop[ib]-p.bdist*4200.f-p.bpos*1700.f,1500.f,15000.f));
+        c.micBLow.highpass(sampleRate,clamp(micBottom[ib]+p.bdist*100.f,30.f,400.f));
         for(int i=0;i<9;++i) c.eq[i].peak(sampleRate,freqs[i],1.0f,p.eq[static_cast<size_t>(i)]);
     }
 }
@@ -120,13 +134,13 @@ float AmpEngine::pitchShift(Channel& ch, float x, float semitones) noexcept {
 float AmpEngine::processSample(int chIndex,float x,const Parameters& p) noexcept {
     if(!p.power) return x; // power is a hard true bypass
     Channel& ch=channels[std::max(0,std::min(1,chIndex))];
-    x *= decibels(p.input);
+    x *= inputGain;
     x=ch.inputHigh.tick(x);
     if(std::abs(p.trans)>.5f)x=pitchShift(ch,x,p.trans);
     // Envelope-following gate: soft attenuation, so it does not hard chop sustain.
     ch.gateEnv=std::max(std::abs(x),ch.gateEnv*.9992f);
     if(p.gateOn) {
-        const float threshold=decibels(p.gate);
+        const float threshold=gateThreshold;
         const float gateGain=clamp(ch.gateEnv/(threshold+1.e-8f),0.035f,1.f);
         x*=gateGain;
     }
@@ -167,10 +181,9 @@ float AmpEngine::processSample(int chIndex,float x,const Parameters& p) noexcept
     x=ch.body.tick(x);
     x=ch.cabinetLow.tick(ch.cabinetHigh.tick(x));
     // Parallel simulated microphones; both are controllable from the CAB page.
-    float a=p.ma?ch.micALow.tick(ch.micAHigh.tick(x))*decibels(p.alv)*(.9f-.32f*p.apos):0.f;
-    float b=p.mb?ch.micBLow.tick(ch.micBHigh.tick(x))*decibels(p.blv)*(.9f-.32f*p.bpos):0.f;
-    if(chIndex==0){a*=clamp(1.f-p.apan*.65f,.2f,1.7f);b*=clamp(1.f-p.bpan*.65f,.2f,1.7f);}
-    else {a*=clamp(1.f+p.apan*.65f,.2f,1.7f);b*=clamp(1.f+p.bpan*.65f,.2f,1.7f);}
+    const auto* gains=chIndex==0?micGainLeft:micGainRight;
+    float a=p.ma?ch.micALow.tick(ch.micAHigh.tick(x))*gains[0]:0.f;
+    float b=p.mb?ch.micBLow.tick(ch.micBHigh.tick(x))*gains[1]:0.f;
     x=(a+b)*(p.ma&&p.mb?.60f:1.f);
     if(p.irOn && impulseLength>0) { // limited first 256 IR taps, zero allocation in audio callback
         ch.irHistory[static_cast<size_t>(ch.irPos)]=x;
@@ -180,7 +193,7 @@ float AmpEngine::processSample(int chIndex,float x,const Parameters& p) noexcept
             sum+=ch.irHistory[static_cast<size_t>(ix)]*impulse[static_cast<size_t>(i)];
         }
         ch.irPos=(ch.irPos+1)%maxIR;
-        x=ch.irLow.tick(ch.irHigh.tick(sum*decibels(p.irlv)));
+        x=ch.irLow.tick(ch.irHigh.tick(sum*irGain));
     }
     if(p.eqOn) for(auto& band:ch.eq) x=band.tick(x);
     if(p.doubler) x=runDelay(ch.doubler,ch.doublerPos,x,clamp(p.dbl,1,30),0,.18f);
@@ -196,8 +209,7 @@ float AmpEngine::processSample(int chIndex,float x,const Parameters& p) noexcept
         const float reverb=runDelay(ch.reverb,ch.reverbPos,x,time,.25f+decay*.45f,p.pedals[4][2]*.047f);
         x=reverb;
     }
-    const float master=(.05f+.095f*clamp(p.master,0,10))*(.1f+.09f*clamp(p.ao,0,10));
-    x*=master*decibels(p.out);
+    x*=outputGain;
     return std::isfinite(x)?clamp(x,-1.3f,1.3f):0.f;
 }
 } // namespace sdsp
