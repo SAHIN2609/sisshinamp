@@ -19,10 +19,11 @@ struct Parameters {
     float irlv = 0, irlo = 80, irhi = 12000;
     float apos=.3f, adist=.1f, alv=0, apan=-.3f;
     float bpos=.6f, bdist=.25f, blv=-3, bpan=.3f;
+    float arm=-6.f, brm=-6.f;
     std::array<float, 9> eq{};
     std::array<std::array<float,3>,5> pedals{{{{5,5,5}},{{5,5,5}},{{5,5,5}},{{5,5,5}},{{5,5,5}}}};
     bool power=true, gateOn=true, eqOn=true, irOn=false, ma=true, mb=true;
-    bool doubler=false;
+    bool doubler=false, roomAOn=false, roomBOn=false;
     std::array<bool,5> pedalOn{{false,false,false,false,false}};
 };
 
@@ -74,6 +75,7 @@ private:
     int impulseLength=0;
     // Derive block-level gains once; avoid expensive per-sample dB conversion.
     float inputGain=1.f, outputGain=1.f, irGain=1.f, gateThreshold=.001f;
+    float roomGainA=.5f, roomGainB=.5f;
     float micGainLeft[2] {1.f,1.f}, micGainRight[2] {1.f,1.f};
     float pitchShift(Channel& ch, float x, float semitones) noexcept;
     float runDelay(std::vector<float>& buffer, size_t& pos, float x, float ms, float feedback, float mix) noexcept;
