@@ -35,6 +35,7 @@ public:
     void clearIR();
     juce::String currentIRName() const;
     bool saveUserPreset(const juce::String& name);
+    bool deleteUserPreset(const juce::String& name);
     bool loadUserPreset(const juce::String& name);
     juce::StringArray userPresetNames() const;
     std::atomic<int> requestedProgram {-1};
