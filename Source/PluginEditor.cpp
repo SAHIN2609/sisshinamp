@@ -131,8 +131,9 @@ SishhinDSPAudioProcessorEditor::SishhinDSPAudioProcessorEditor(SishhinDSPAudioPr
         auto root=juce::File::getSpecialLocation(juce::File::userDocumentsDirectory).getChildFile("SishhinDSP").getChildFile("Presets");
         root.createDirectory();
         chooser=std::make_unique<juce::FileChooser>("Save SishhinDSP preset",root.getChildFile("My preset.sdsp"),"*.sdsp");
+        juce::Component::SafePointer<SishhinDSPAudioProcessorEditor> safe(this);
         chooser->launchAsync(juce::FileBrowserComponent::saveMode|juce::FileBrowserComponent::canSelectFiles,
-            [safe=juce::Component::SafePointer<SishhinDSPAudioProcessorEditor>(this)](const juce::FileChooser& fc){
+            [safe](const juce::FileChooser& fc){
                 if(safe==nullptr)return;
                 const auto file=fc.getResult();
                 if(file!=juce::File()){
@@ -143,8 +144,9 @@ SishhinDSPAudioProcessorEditor::SishhinDSPAudioProcessorEditor(SishhinDSPAudioPr
     };
     loadIR.onClick=[this]{
         chooser=std::make_unique<juce::FileChooser>("Load a WAV or AIFF cabinet IR",juce::File(),"*.wav;*.aif;*.aiff");
+        juce::Component::SafePointer<SishhinDSPAudioProcessorEditor> safe(this);
         chooser->launchAsync(juce::FileBrowserComponent::openMode|juce::FileBrowserComponent::canSelectFiles,
-            [safe=juce::Component::SafePointer<SishhinDSPAudioProcessorEditor>(this)](const juce::FileChooser&fc){
+            [safe](const juce::FileChooser&fc){
                 if(safe==nullptr)return;
                 const auto file=fc.getResult();
                 if(file!=juce::File()) {
@@ -256,7 +258,9 @@ void SishhinDSPAudioProcessorEditor::resized(){
         put(ampButtons[(size_t)i],262+i*182.f,568,176,58);
         put(cabButtons[(size_t)i],335+i*132.f,595,125,49);
     }
-    for(auto* comp:{&loadIR,&clearIRButton,&irInfo})comp->setVisible(currentTab==2);
+    loadIR.setVisible(currentTab==2);
+    clearIRButton.setVisible(currentTab==2);
+    irInfo.setVisible(currentTab==2);
     put(loadIR,490,614,102,30);put(clearIRButton,601,614,80,30);put(irInfo,287,650,445,24);
     resetEQ.setVisible(currentTab==3);put(resetEQ,685,264,105,31);
 }
