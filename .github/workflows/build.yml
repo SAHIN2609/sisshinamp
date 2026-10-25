@@ -19,6 +19,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Validate embedded HTML and bridge
+        shell: bash
+        run: |
+          node --check Assets/bridge.js
+          python -c "from pathlib import Path; h=Path('Assets/interface.html').read_text(encoding='utf-8'); assert '<script src=\"bridge.js\"></script>' in h; assert 'SishhinDSP' in h"
       - name: Install Windows WebView2 SDK
         if: runner.os == 'Windows'
         shell: pwsh
