@@ -19,9 +19,19 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Install Windows WebView2 SDK
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          nuget install Microsoft.Web.WebView2 -Version 1.0.4258.31 -OutputDirectory "${{ github.workspace }}/webview2-nuget" -NonInteractive
       - name: Configure
         shell: bash
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DSDSP_BUILD_PLUGIN=ON -DSDSP_BUILD_TESTS=ON
+        run: |
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
+            cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DSDSP_BUILD_PLUGIN=ON -DSDSP_BUILD_TESTS=ON -DJUCE_WEBVIEW2_PACKAGE_LOCATION="$GITHUB_WORKSPACE/webview2-nuget"
+          else
+            cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DSDSP_BUILD_PLUGIN=ON -DSDSP_BUILD_TESTS=ON
+          fi
       - name: Build
         shell: bash
         run: cmake --build build --config Release --parallel 3
