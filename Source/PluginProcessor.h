@@ -32,6 +32,7 @@ public:
     juce::AudioProcessorValueTreeState apvts;
     void selectFactoryPreset(int index);
     bool loadIRFile(const juce::File& file, juce::String& error);
+    bool loadIRData(const juce::MemoryBlock& data, const juce::String& filename, juce::String& error);
     void clearIR();
     juce::String currentIRName() const;
     bool saveUserPreset(const juce::String& name);
@@ -39,6 +40,7 @@ public:
     bool loadUserPreset(const juce::String& name);
     juce::StringArray userPresetNames() const;
     std::atomic<int> requestedProgram {-1};
+    std::atomic<float> lastInputPeak {0.0f}, lastOutputPeak {0.0f};
 
 private:
     sdsp::AmpEngine engine;
