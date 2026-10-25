@@ -40,16 +40,18 @@ if(SDSP_BUILD_PLUGIN)
         IS_MIDI_EFFECT FALSE
         EDITOR_WANTS_KEYBOARD_FOCUS TRUE
         COPY_PLUGIN_AFTER_BUILD FALSE
+        NEEDS_WEBVIEW2 TRUE
     )
     juce_generate_juce_header(SishhinDSP)
-    juce_add_binary_data(SishhinAssets SOURCES Assets/sishhin_logo.png)
+    juce_add_binary_data(SishhinAssets SOURCES Assets/sishhin_logo.png Assets/interface.html Assets/bridge.js)
     target_sources(SishhinDSP PRIVATE
         Source/PluginProcessor.h Source/PluginProcessor.cpp
         Source/PluginEditor.h Source/PluginEditor.cpp
     )
     target_include_directories(SishhinDSP PRIVATE Source)
     target_compile_definitions(SishhinDSP PUBLIC
-        JUCE_WEB_BROWSER=0
+        JUCE_WEB_BROWSER=1
+        JUCE_USE_WIN_WEBVIEW2_WITH_STATIC_LINKING=1
         JUCE_USE_CURL=0
         JUCE_VST3_CAN_REPLACE_VST2=0
     )
