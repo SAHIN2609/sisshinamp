@@ -1,67 +1,40 @@
-# SishhinDSP — Native JUCE VST3 + Standalone Source Package
+# SishhinDSP — HTML WebView VST3 and Standalone (JUCE 8)
 
-**This is a native C++/JUCE plugin project, not an HTML/WebView wrapper.**
+SishhinDSP is a **native audio plugin** whose interface displays the original
+SishhinDSP HTML inside JUCE's embedded browser. Guitar audio is processed by the
+separate C++ `AmpEngine`, **not** by JavaScript or the browser. The original
+design reference is unchanged under
+`DesignReference/Original-SishhinDSP.html`; the embedded runtime version is
+`Assets/interface.html`, with nonvisual event handling in `Assets/bridge.js`.
 
-The original uploaded HTML is included, unchanged, under
-`DesignReference/Original-SishhinDSP.html`. The runtime UI is recreated with
-JUCE graphics, knobs, buttons, menus, panels, and a Japanese logo extracted
-from that HTML. The design is similar to the reference, **not pixel-identical**.
+## Platforms and requirements
 
-## Building with GitHub Actions (Windows + macOS)
+- Windows: Windows 10/11 with the **Microsoft Edge WebView2 Runtime** installed.
+  GitHub Actions downloads the WebView2 SDK via NuGet to compile the VST3 and
+  standalone versions. The end user's machine still needs the Edge WebView2
+  runtime (normally installed with Edge).
+- macOS: JUCE uses the system WKWebView / WebKit component.
+- The production UI does not require a local HTTP server or external audio
+  engine. Web fonts requested by the original HTML may use fallback fonts
+  when offline. Embedded Japanese logo/artwork is self-contained.
 
-1. Download this ZIP, extract it, and upload **the contents of the top-level
-   folder** (not a folder nested inside the repository) to your own GitHub repo.
-   The repository root must contain `CMakeLists.txt`, `Source/`, `Assets/`,
-   `tests/`, and `.github/workflows/build.yml`.
-2. Open the repository's **Actions** tab and select
-   **Build SishhinDSP VST3 and Standalone**.
-3. Choose **Run workflow**, or push to `main` / `master` to trigger a build.
-4. When the runs finish, download `SishhinDSP-Windows` and `SishhinDSP-macOS`
-   from the workflow's **Artifacts** section.
-5. Install the `.vst3` into your DAW (on Windows, typically
-   `C:\Program Files\Common Files\VST3`; on macOS, typically
-   `/Library/Audio/Plug-Ins/VST3`). Run the standalone binary directly.
+## Build with GitHub Actions
 
-No token, login, licensing server, GitHub API key, or WebView is needed at
-plugin runtime. The workflows **download JUCE** from its official GitHub repo
-while building; an internet connection is required in Actions.
+1. Open **Actions** in the GitHub repository.
+2. Choose **Build SishhinDSP VST3 and Standalone** and **Run workflow**.
+3. Download the Windows and/or macOS workflow artifacts after both jobs succeed.
+4. In a DAW, load the **SishhinDSP** VST3 onto an **audio effect/insert track**.
+   Choose the correct guitar interface input. Your DAW may require you to enable
+   input monitoring.
+5. Watch the **INPUT** and **OUTPUT** dBFS readouts under the interface. If
+   INPUT remains blank, check audio-device and DAW input routing before adjusting
+   gain. If input moves but output does not, check VOICE/power bypass, gate, and
+   master/output.
 
-For local builds with CMake 3.22+, C++17, and suitable MSVC/Xcode tools:
+GitHub Actions builds use the pinned JUCE revision in `CMakeLists.txt`,
+CMake, MSVC on Windows and Clang/Xcode on macOS.
 
-```sh
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build --config Release --parallel 3
-ctest --test-dir build -C Release --output-on-failure
-```
-
-## Controls / audio path
-
-**Input → gate → pitch transpose → optional optical compression / drive /
-low boost → Sakura/Taki/Take amp → tone stack → cabinet model → dual mic
-mix → optional loaded IR → 9-band EQ → optional stereo doubler → tape echo
-→ reverb → master/output.**
-
-- Sakura Clean: high-headroom, gentle soft-knee saturation.
-- Taki Metal: tight two-stage high-gain distortion.
-- Take Thick: low-mid-heavy asymmetric saturation.
-- Amp Gain, Bass, Middle, Treble, Presence, Master, Output, input/output gains
-  are fully parameterized and automatable.
-- Three cabinets: 1x12 open, 4x12 modern, 2x12 oversized.
-- Two microphone sections: each has position, distance, level, pan, and on/off.
-- Five effects: Bloom compressor, Edge distortion, Weight low boost, Echo
-  delay, Halo reverb. Separate knob parameters and on/off automation.
-- 9-band graphic EQ; noise gate; stereo/mono input; transpose; doubler.
-- Cabinet IR loader accepts WAV and AIFF and stores IR data in plugin state.
-  **IRs are limited to the first 768 resampled taps** (a short cabinet FIR).
-  This is not a full-length partitioned convolution implementation.
-- 72 named factory presets with settings, plus user `.sdsp` presets saved in
-  Documents/SishhinDSP/Presets. Presets include the loaded short IR taps.
-- MIDI Program Change loads factory programs (0–71), even if editor is closed.
-- VST3 and standalone application, stereo and mono bus compatibility.
-
-## Tests & limitations
-
-The **portable DSP engine** can be compiled and run without JUCE, using:
+For a local portable-only audio DSP test:
 
 ```sh
 cmake -S . -B test-build -DSDSP_BUILD_PLUGIN=OFF -DSDSP_BUILD_TESTS=ON
@@ -69,17 +42,38 @@ cmake --build test-build --config Release
 ctest --test-dir test-build -C Release --output-on-failure
 ```
 
-That test checks audible-path differences numerically and verifies output is
-finite and non-silent, including transpose and IR. It is **not** a substitute
-for a real VST3 compilation and DAW test. There is no local Windows or macOS
-JUCE toolchain in the authoring environment, so those platform builds and
-host compatibility are **not yet verified**. If GitHub Actions reports a
-compiler error, use the first compiler error in the workflow log for debugging.
+## HTML ↔ native bridge
 
-A limitation of this initial implementation is that the cab IR uses a short
-768-tap time-domain FIR and the reverb is a compact delay-based effect, not
-studio-quality partitioned convolution. The DSP is native and functional, but
-sonic refinement and latency/alias testing in your DAW may still be needed.
+- Every amp knob, top-bar control, 9-band EQ slider, pedal switch, amp/cab
+  selection, microphone type and room-send controls reports JUCE host parameters
+  through `window.__JUCE__.backend.emitEvent`.
+- Native JUCE sends DAW session state and host automation back to the HTML
+  through `sdspState` events. Saving/restoring DAW plugin state is handled by
+  `AudioProcessorValueTreeState`.
+- Factory presets 0–71 are held in the JUCE processor and selected from the
+  original browser preset list. User presets in the HTML use its local browser
+  storage; the resulting audio parameters are also committed to the host's
+  current plugin state.
+- Selected WAV/AIFF impulses (up to 8 MB of source data) are decoded in the
+  **native** engine and saved in the host plugin state as a short IR. JS only
+  renders the waveform preview. For low CPU cost, only the first **768**
+  resampled FIR taps are used (not a full-length convolution reverb).
+- The original browser MIDI-access popup is replaced with a help message:
+  MIDI Program Change 0–71 works through MIDI sent to the plugin from the DAW.
+- The reference HTML has a disabled TUNER control. It remains disabled here;
+  a native tuner algorithm is **not** implemented.
 
-JUCE is © Raw Material Software. Check the JUCE license for the obligations
-that apply to your intended distribution; JUCE is not bundled in this ZIP.
+## Audio pipeline
+
+Guitar input → gate → transpose → Bloom / Edge / Weight pedals → selected
+Sakura Clean / Taki Metal / Take Thick amp → tone stack → chosen cabinet and
+microphones → optional native impulse response → graphic EQ → doubler →
+Echo / Halo with room sends → output.
+
+**Validation status:** portable DSP tests check non-silent finite outputs,
+distinct amp responses, IR and other DSP features; these do **not** guarantee
+a successful Windows/macOS VST3 build, DAW compatibility, or artifact usability.
+Use the current GitHub Actions run for the actual platform build result.
+
+JUCE is © Raw Material Software; check its licensing requirements before
+commercial distribution.
