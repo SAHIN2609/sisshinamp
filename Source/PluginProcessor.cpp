@@ -45,6 +45,8 @@ Layout SishhinDSPAudioProcessor::createLayout() {
     addF(p,"irlv","IR LEVEL",-12,12,0,.1f);
     addF(p,"irlo","IR LOW CUT",20,500,80,1);
     addF(p,"irhi","IR HIGH CUT",2000,20000,12000,1);
+    addF(p,"arm","MIC A ROOM LEVEL",-60,6,-6,.1f);
+    addF(p,"brm","MIC B ROOM LEVEL",-60,6,-6,.1f);
     for (auto prefix : {"a","b"}) {
         addF(p,(juce::String(prefix)+"pos").toRawUTF8(), (juce::String(prefix)+" POSITION").toRawUTF8(),0,1,.3f);
         addF(p,(juce::String(prefix)+"dist").toRawUTF8(),(juce::String(prefix)+" DISTANCE").toRawUTF8(),0,1,.1f);
@@ -65,6 +67,8 @@ Layout SishhinDSPAudioProcessor::createLayout() {
     addB(p,"irOn","IR ON",false);
     addB(p,"ma","MIC A ON",true);
     addB(p,"mb","MIC B ON",true);
+    addB(p,"raOn","MIC A ROOM ON",false);
+    addB(p,"rbOn","MIC B ROOM ON",false);
     addB(p,"doubler","DOUBLER ON",false);
     addB(p,"stereo","STEREO INPUT",false);
     for(int i=0;i<5;++i) {
@@ -99,6 +103,8 @@ sdsp::Parameters SishhinDSPAudioProcessor::collectParameters() const noexcept {
     p.master=get("master");p.ao=get("ao");p.irlv=get("irlv");p.irlo=get("irlo");p.irhi=get("irhi");
     p.apos=get("apos");p.adist=get("adist");p.alv=get("alv");p.apan=get("apan");
     p.bpos=get("bpos");p.bdist=get("bdist");p.blv=get("blv");p.bpan=get("bpan");
+    p.arm=get("arm");p.brm=get("brm");
+    p.roomAOn=get("raOn")>.5f;p.roomBOn=get("rbOn")>.5f;
     for(int i=0;i<9;++i) p.eq[(size_t)i]=get(("e"+juce::String(i)).toRawUTF8());
     for(int i=0;i<5;++i) for(int j=0;j<3;++j)
         p.pedals[(size_t)i][(size_t)j]=get(("p"+juce::String(i)+"_"+juce::String(j)).toRawUTF8());
@@ -128,17 +134,32 @@ void SishhinDSPAudioProcessor::processBlock(juce::AudioBuffer<float>& b,juce::Mi
     engine.configure(p);
     const int chs=b.getNumChannels();
     const int inputs=getTotalNumInputChannels();
-    if(chs==0 || inputs==0) { b.clear(); return; }
+    if(chs==0 || inputs==0) { b.clear(); lastInputPeak.store(0.f); lastOutputPeak.store(0.f); return; }
     const bool monoMode=get("stereo")<.5f;
+    float inPeak=0.0f, outPeak=0.0f;
     for(int i=0;i<b.getNumSamples();++i) {
         float x0=b.getSample(0,i);
-        // A mono guitar input must feed both output channels at full level.
         float x1=(inputs>1 && chs>1)?b.getSample(1,i):x0;
-        if(monoMode && inputs>1) x0=x1=(x0+x1)*.5f;
-        b.setSample(0,i,engine.processSample(0,x0,p));
-        if(chs>1) b.setSample(1,i,engine.processSample(1,x1,p));
+        // Hosts may allocate a stereo bus for a guitar connected only to left.
+        // Never halve that signal against an inactive/silent right channel.
+        if(monoMode && inputs>1) {
+            const auto mono = std::abs(x1)<1.e-6f ? x0
+                            : std::abs(x0)<1.e-6f ? x1 : (x0+x1)*.5f;
+            x0=x1=mono;
+        }
+        inPeak=std::max(inPeak,std::max(std::abs(x0),std::abs(x1)));
+        const auto y0=engine.processSample(0,x0,p);
+        b.setSample(0,i,y0);
+        outPeak=std::max(outPeak,std::abs(y0));
+        if(chs>1) {
+            const auto y1=engine.processSample(1,x1,p);
+            b.setSample(1,i,y1);
+            outPeak=std::max(outPeak,std::abs(y1));
+        }
     }
     for(int c=2;c<chs;++c) b.clear(c,0,b.getNumSamples());
+    lastInputPeak.store(inPeak);
+    lastOutputPeak.store(outPeak);
 }
 void SishhinDSPAudioProcessor::processBlock(juce::AudioBuffer<double>& b,juce::MidiBuffer& midi) {
     // JUCE can request double precision. Convert through a reusable float buffer.
@@ -175,6 +196,8 @@ void SishhinDSPAudioProcessor::selectFactoryPreset(int ix) {
     setParam(apvts,"amp",(float)a);setParam(apvts,"cab",(float)a);
     setParam(apvts,"power",1.f);setParam(apvts,"gateOn",1.f);setParam(apvts,"eqOn",1.f);
     setParam(apvts,"irOn",0.f);setParam(apvts,"ma",1.f);setParam(apvts,"mb",1.f);
+    setParam(apvts,"raOn",0.f);setParam(apvts,"rbOn",0.f);
+    setParam(apvts,"arm",-6.f);setParam(apvts,"brm",-6.f);
     setParam(apvts,"micaType",(float)((i/6)%4));setParam(apvts,"micbType",(float)((i/8+1)%4));
     setParam(apvts,"stereo",0.f);setParam(apvts,"doubler",i%5==4?1.f:0.f);
     setParam(apvts,"input",0.f);setParam(apvts,"out",0.f);setParam(apvts,"trans",0.f);
@@ -267,6 +290,28 @@ bool SishhinDSPAudioProcessor::loadIRFile(const juce::File& file,juce::String& e
     }
     setParam(apvts,"irOn",1);
     return true;
+}
+bool SishhinDSPAudioProcessor::loadIRData(const juce::MemoryBlock& data,
+                                               const juce::String& filename,
+                                               juce::String& error) {
+    const auto extension=filename.fromLastOccurrenceOf(".",true,false).toLowerCase();
+    if (extension!=".wav" && extension!=".aif" && extension!=".aiff") {
+        error="Choose a WAV/AIFF impulse response.";
+        return false;
+    }
+    const auto file=juce::File::getSpecialLocation(juce::File::tempDirectory)
+                        .getNonexistentChildFile("SishhinDSP_IR",extension,false);
+    if (!file.replaceWithData(data.getData(),data.getSize())) {
+        error="Unable to write temporary cabinet IR.";
+        return false;
+    }
+    const bool ok=loadIRFile(file,error);
+    file.deleteFile();
+    if (ok) {
+        const juce::ScopedLock lock(irLock);
+        irName=filename;
+    }
+    return ok;
 }
 void SishhinDSPAudioProcessor::clearIR(){
     const juce::ScopedLock lock(irLock);
