@@ -180,5 +180,8 @@
   // The backend is authoritative on session load: request its saved DAW state.
   S.on.voice = true;
   sync();
-  send("sdspReady",{});
+  // Wait until the whole page is loaded before asking JUCE to emit frontend events.
+  const notifyReady = () => setTimeout(() => send("sdspReady", {}), 0);
+  if (document.readyState === "complete") notifyReady();
+  else window.addEventListener("load", notifyReady, { once: true });
 })();
