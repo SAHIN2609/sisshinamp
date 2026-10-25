@@ -49,6 +49,17 @@
       send("sdspBatch", { values: values() });
   };
 
+  // A user preset is saved in both WebView localStorage (for the HTML list)
+  // and native Documents/SishhinDSP/Presets/*.sdsp (for durable plugin presets).
+  document.addEventListener("keydown", e => {
+    if (e.target && e.target.id === "nm" && e.key === "Enter" && US.length)
+      send("sdspSavePreset", { name: US[US.length - 1].name });
+  });
+  document.addEventListener("click", e => {
+    if (e.target.closest("#dl") && cur >= 72 && US[cur-72])
+      send("sdspDeletePreset", { name: US[cur-72].name });
+  }, true);
+
   document.addEventListener("pointerdown", e => {
     const knob = e.target.closest(".knob");
     if (knob) activeDrag = knob.dataset.k;
@@ -73,6 +84,9 @@
     } else if ((node = el("[data-mp]"))) {
       const mic = node.dataset.mp.split(",")[0];
       send("sdspParameter", { id: "mic" + mic + "Type", value: S["mic" + mic] });
+    } else if (el("#sv")) {
+      if (cur >= 72 && US[cur-72])
+        send("sdspSavePreset", { name: US[cur-72].name });
     } else if (el("#irx")) {
       send("sdspClearIR", {});
     } else if (el("#eqr")) {
