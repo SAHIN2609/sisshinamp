@@ -61,6 +61,24 @@ juce::WebBrowserComponent::Options SishhinDSPAudioProcessorEditor::makeOptions()
         .withEventListener("sdspParameter", [this](juce::var v) { handleParameter(std::move(v)); })
         .withEventListener("sdspBatch", [this](juce::var v) { handleBatch(std::move(v)); })
         .withEventListener("sdspProgram", [this](juce::var v) { handleProgram(std::move(v)); })
+        .withEventListener("sdspSavePreset", [this](juce::var v)
+        {
+            if (const auto* object = v.getDynamicObject())
+            {
+                const auto name = object->getProperty("name").toString().trim();
+                if (name.isNotEmpty() && !processor.saveUserPreset(name))
+                    sendError("Unable to save preset " + name);
+            }
+        })
+        .withEventListener("sdspDeletePreset", [this](juce::var v)
+        {
+            if (const auto* object = v.getDynamicObject())
+            {
+                const auto name = object->getProperty("name").toString().trim();
+                if (name.isNotEmpty() && !processor.deleteUserPreset(name))
+                    sendError("Unable to delete preset " + name);
+            }
+        })
         .withEventListener("sdspIR", [this](juce::var v) { handleIR(std::move(v)); })
         .withEventListener("sdspClearIR", [this](juce::var)
         {
