@@ -45,7 +45,7 @@ private:
     juce::AudioBuffer<float> floatScratch;
     std::array<float, sdsp::maxIR> pendingImpulse{};
     int pendingLength = 0;
-    bool impulseUpdate = false;
+    std::atomic<bool> impulseUpdate {false};
     mutable juce::CriticalSection irLock;
     juce::String irName;
     std::atomic<int> currentProgram {0};
