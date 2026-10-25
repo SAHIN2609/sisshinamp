@@ -1,0 +1,275 @@
+#include "PluginProcessor.h"
+#include "PluginEditor.h"
+#include <cmath>
+
+namespace {
+using Layout=juce::AudioProcessorValueTreeState::ParameterLayout;
+using PF=juce::AudioParameterFloat;
+using PB=juce::AudioParameterBool;
+using PC=juce::AudioParameterChoice;
+void addF(Layout& layout, const char* id, const char* label, float low,float high,float def, float step=.01f) {
+    layout.add(std::make_unique<PF>(juce::ParameterID(id,1), label,
+        juce::NormalisableRange<float>(low,high,step),def));
+}
+void addB(Layout& layout,const char* id,const char* label,bool def) {
+    layout.add(std::make_unique<PB>(juce::ParameterID(id,1),label,def));
+}
+void setParam(juce::AudioProcessorValueTreeState& a,const juce::String& id,float value) {
+    if(auto* p=a.getParameter(id)) {
+        p->beginChangeGesture();
+        p->setValueNotifyingHost(p->convertTo0to1(value));
+        p->endChangeGesture();
+    }
+}
+}
+
+Layout SishhinDSPAudioProcessor::createLayout() {
+    Layout p;
+    p.add(std::make_unique<PC>(juce::ParameterID("amp",1),"AMP",juce::StringArray{"Sakura Clean","Taki Metal","Take Thick"},0));
+    p.add(std::make_unique<PC>(juce::ParameterID("cab",1),"CAB",juce::StringArray{"1x12 Open","4x12 Modern","2x12 Oversized"},0));
+    addF(p,"input","INPUT",-12,12,0,.1f);
+    addF(p,"gate","GATE",-80,0,-60,.1f);
+    addF(p,"trans","TRANSPOSE",-12,12,0,1);
+    addF(p,"dbl","DOUBLER",0,30,12,.1f);
+    addF(p,"out","OUTPUT",-12,12,0,.1f);
+    addF(p,"gain","GAIN",0,10,5);
+    addF(p,"bass","BASS",0,10,5);
+    addF(p,"mid","MIDDLE",0,10,5);
+    addF(p,"treb","TREBLE",0,10,5);
+    addF(p,"pres","PRESENCE",0,10,5);
+    addF(p,"master","MASTER",0,10,5);
+    addF(p,"ao","AMP OUTPUT",0,10,5);
+    addF(p,"irlv","IR LEVEL",-12,12,0,.1f);
+    addF(p,"irlo","IR LOW CUT",20,500,80,1);
+    addF(p,"irhi","IR HIGH CUT",2000,20000,12000,1);
+    for (auto prefix : {"a","b"}) {
+        addF(p,(juce::String(prefix)+"pos").toRawUTF8(), (juce::String(prefix)+" POSITION").toRawUTF8(),0,1,.3f);
+        addF(p,(juce::String(prefix)+"dist").toRawUTF8(),(juce::String(prefix)+" DISTANCE").toRawUTF8(),0,1,.1f);
+        addF(p,(juce::String(prefix)+"lv").toRawUTF8(),(juce::String(prefix)+" MIC LEVEL").toRawUTF8(),-12,12,0);
+        addF(p,(juce::String(prefix)+"pan").toRawUTF8(),(juce::String(prefix)+" PAN").toRawUTF8(),-1,1,0);
+    }
+    for (int i=0;i<9;++i) {
+        const auto id="e"+juce::String(i);
+        addF(p,id.toRawUTF8(),("EQ BAND "+juce::String(i+1)).toRawUTF8(),-12,12,0,.1f);
+    }
+    for(int i=0;i<5;++i) for(int j=0;j<3;++j) {
+        const auto id="p"+juce::String(i)+"_"+juce::String(j);
+        addF(p,id.toRawUTF8(),id.toRawUTF8(),0,10,5);
+    }
+    addB(p,"power","AMP POWER",true);
+    addB(p,"gateOn","NOISE GATE ON",true);
+    addB(p,"eqOn","GRAPHIC EQ ON",true);
+    addB(p,"irOn","IR ON",false);
+    addB(p,"ma","MIC A ON",true);
+    addB(p,"mb","MIC B ON",true);
+    addB(p,"doubler","DOUBLER ON",false);
+    addB(p,"stereo","STEREO INPUT",false);
+    for(int i=0;i<5;++i) {
+        const auto id="p"+juce::String(i)+"On";
+        addB(p,id.toRawUTF8(),("PEDAL "+juce::String(i)+" ON").toRawUTF8(),false);
+    }
+    return p;
+}
+
+SishhinDSPAudioProcessor::SishhinDSPAudioProcessor()
+    : AudioProcessor(BusesProperties().withInput("Guitar In",juce::AudioChannelSet::stereo(),true)
+                                  .withOutput("Out",juce::AudioChannelSet::stereo(),true)),
+      apvts(*this,nullptr,"SISHHINDSP",createLayout()) {selectFactoryPreset(0);}
+
+void SishhinDSPAudioProcessor::prepareToPlay(double sr,int maxBlock) {engine.prepare(sr,maxBlock);floatScratch.setSize(2,maxBlock);}
+void SishhinDSPAudioProcessor::releaseResources() {engine.reset();}
+bool SishhinDSPAudioProcessor::isBusesLayoutSupported(const BusesLayout& layouts) const {
+    const auto in=layouts.getMainInputChannelSet(), out=layouts.getMainOutputChannelSet();
+    return (in==juce::AudioChannelSet::mono() || in==juce::AudioChannelSet::stereo()) &&
+           (out==juce::AudioChannelSet::mono() || out==juce::AudioChannelSet::stereo());
+}
+float SishhinDSPAudioProcessor::get(const char* id) const noexcept {
+    if(const auto* v=apvts.getRawParameterValue(id)) return v->load();
+    return 0.f;
+}
+sdsp::Parameters SishhinDSPAudioProcessor::collectParameters() const noexcept {
+    sdsp::Parameters p;
+    p.amp=(int)get("amp");p.cab=(int)get("cab");
+    p.input=get("input");p.gate=get("gate");p.trans=get("trans");p.dbl=get("dbl");p.out=get("out");
+    p.gain=get("gain");p.bass=get("bass");p.mid=get("mid");p.treb=get("treb");p.pres=get("pres");
+    p.master=get("master");p.ao=get("ao");p.irlv=get("irlv");p.irlo=get("irlo");p.irhi=get("irhi");
+    p.apos=get("apos");p.adist=get("adist");p.alv=get("alv");p.apan=get("apan");
+    p.bpos=get("bpos");p.bdist=get("bdist");p.blv=get("blv");p.bpan=get("bpan");
+    for(int i=0;i<9;++i) p.eq[(size_t)i]=get(("e"+juce::String(i)).toRawUTF8());
+    for(int i=0;i<5;++i) for(int j=0;j<3;++j)
+        p.pedals[(size_t)i][(size_t)j]=get(("p"+juce::String(i)+"_"+juce::String(j)).toRawUTF8());
+    p.power=get("power")>.5f;p.gateOn=get("gateOn")>.5f;p.eqOn=get("eqOn")>.5f;
+    p.irOn=get("irOn")>.5f;p.ma=get("ma")>.5f;p.mb=get("mb")>.5f;p.doubler=get("doubler")>.5f;
+    for(int i=0;i<5;++i) p.pedalOn[(size_t)i]=get(("p"+juce::String(i)+"On").toRawUTF8())>.5f;
+    return p;
+}
+void SishhinDSPAudioProcessor::pushIRToEngine() noexcept {
+    if (!impulseUpdate) return;
+    if (!irLock.tryEnter()) return;
+    if (impulseUpdate) {
+        if(pendingLength==0) engine.clearImpulse();
+        else engine.setImpulse(pendingImpulse,pendingLength);
+        impulseUpdate=false;
+    }
+    irLock.exit();
+}
+void SishhinDSPAudioProcessor::processBlock(juce::AudioBuffer<float>& b,juce::MidiBuffer& midi) {
+    juce::ScopedNoDenormals guard;
+    for(const auto metadata:midi) {
+        const auto msg=metadata.getMessage();
+        if(msg.isProgramChange()) {requestedProgram.store(msg.getProgramChangeNumber()%72);triggerAsyncUpdate();}
+    }
+    pushIRToEngine();
+    const auto p=collectParameters();
+    engine.configure(p);
+    const int chs=b.getNumChannels();
+    const bool monoMode=get("stereo")<.5f;
+    for(int i=0;i<b.getNumSamples();++i) {
+        float x0=b.getSample(0,i), x1=chs>1?b.getSample(1,i):x0;
+        if(monoMode) x0=x1=(x0+x1)*.5f;
+        const float y0=engine.processSample(0,x0,p);
+        b.setSample(0,i,y0);
+        if(chs>1) b.setSample(1,i,engine.processSample(1,x1,p));
+    }
+}
+void SishhinDSPAudioProcessor::processBlock(juce::AudioBuffer<double>& b,juce::MidiBuffer& midi) {
+    // JUCE can request double precision. Convert through a reusable float buffer.
+    if(floatScratch.getNumSamples()<b.getNumSamples() || floatScratch.getNumChannels()<b.getNumChannels())
+        floatScratch.setSize(juce::jmax(2,b.getNumChannels()),b.getNumSamples());
+    juce::AudioBuffer<float>& temp=floatScratch;
+    for(int c=0;c<b.getNumChannels();++c) for(int i=0;i<b.getNumSamples();++i)
+        temp.setSample(c,i,(float)b.getSample(c,i));
+    juce::AudioBuffer<float> view(temp.getArrayOfWritePointers(),b.getNumChannels(),b.getNumSamples());
+    processBlock(view,midi);
+    for(int c=0;c<b.getNumChannels();++c) for(int i=0;i<b.getNumSamples();++i)
+        b.setSample(c,i,temp.getSample(c,i));
+}
+juce::AudioProcessorEditor* SishhinDSPAudioProcessor::createEditor(){return new SishhinDSPAudioProcessorEditor(*this);}
+
+const juce::String SishhinDSPAudioProcessor::getProgramName(int index) {
+    static const char* adjectives[]={"Asa","Yuki","Kaze","Tsuki","Hana","Mizu","Kumo","Ame","Hoshi","Kawa","Matsu","Kiri"};
+    static const char* tone[][2]={{"Clean","Shimmer"},{"Chug","Lead"},{"Wall","Crush"}};
+    const int a=juce::jlimit(0,71,index)/24, i=juce::jlimit(0,71,index)%24;
+    return juce::String(adjectives[i%12])+" "+tone[a][i/12];
+}
+void SishhinDSPAudioProcessor::setCurrentProgram(int index){
+    // Hosts sometimes call this off the message thread; defer actual APVTS edits.
+    requestedProgram.store(juce::jlimit(0,71,index));
+    triggerAsyncUpdate();
+}
+void SishhinDSPAudioProcessor::handleAsyncUpdate() {
+    const int program=requestedProgram.exchange(-1);
+    if(program>=0)selectFactoryPreset(program);
+}
+void SishhinDSPAudioProcessor::selectFactoryPreset(int ix) {
+    ix=juce::jlimit(0,71,ix); const int a=ix/24,i=ix%24;
+    currentProgram.store(ix);
+    setParam(apvts,"amp",(float)a);setParam(apvts,"cab",(float)a);
+    // deterministic preset values, with audible differences
+    const float q=(float)((i*17+a*7)%11)/10.f;
+    setParam(apvts,"gain", (a==0?2.0f:a==1?7.3f:5.8f)+q*(a==0?2.4f:1.6f));
+    setParam(apvts,"bass", a==2?7.5f:a==1?6.7f:5.f);
+    setParam(apvts,"mid", a==1?3.8f:a==2?6.9f:5.2f);
+    setParam(apvts,"treb", a==0?6.4f:a==1?6.0f:4.8f);
+    setParam(apvts,"pres", a==1?6.7f:4.6f);
+    setParam(apvts,"master",5.5f);setParam(apvts,"ao",5.f);
+    setParam(apvts,"gate",a==1?-48.f:-64.f);
+    setParam(apvts,"p1On",a==1?1.f:0.f);
+    setParam(apvts,"p2On",a==2?1.f:0.f);
+    setParam(apvts,"p3On",i>=12?1.f:0.f);
+    setParam(apvts,"p4On",(i%6)>=4?1.f:0.f);
+}
+void SishhinDSPAudioProcessor::getStateInformation(juce::MemoryBlock& dest) {
+    auto state=apvts.copyState();
+    {
+        const juce::ScopedLock lock(irLock);
+        state.setProperty("irName",irName,nullptr);
+        state.setProperty("factoryProgram",currentProgram.load(),nullptr);
+        juce::MemoryBlock raw(pendingImpulse.data(),(size_t)pendingLength*sizeof(float));
+        state.setProperty("irTaps",raw.toBase64Encoding(),nullptr);
+    }
+    if(auto xml=state.createXml()) copyXmlToBinary(*xml,dest);
+}
+void SishhinDSPAudioProcessor::setStateInformation(const void* data,int size) {
+    if(auto xml=getXmlFromBinary(data,size)) {
+        if(xml->hasTagName(apvts.state.getType())) {
+            auto state=juce::ValueTree::fromXml(*xml);
+            {
+                const juce::ScopedLock lock(irLock);
+                irName=state.getProperty("irName").toString();
+                juce::MemoryBlock mb;
+                mb.fromBase64Encoding(state.getProperty("irTaps").toString());
+                pendingImpulse.fill(0);
+                pendingLength=juce::jmin(sdsp::maxIR,(int)(mb.getSize()/sizeof(float)));
+                if(pendingLength) std::memcpy(pendingImpulse.data(),mb.getData(),(size_t)pendingLength*sizeof(float));
+                impulseUpdate=true;
+            }
+            apvts.replaceState(state);
+            currentProgram.store(juce::jlimit(0,71,(int)state.getProperty("factoryProgram",0)));
+        }
+    }
+}
+bool SishhinDSPAudioProcessor::loadIRFile(const juce::File& file,juce::String& error) {
+    juce::AudioFormatManager formats;
+    formats.registerBasicFormats();
+    std::unique_ptr<juce::AudioFormatReader> reader(formats.createReaderFor(file));
+    if(!reader){error="Unsupported IR. Choose a WAV or AIFF file.";return false;}
+    if(reader->lengthInSamples<=0){error="IR is empty.";return false;}
+    // Limited FIR cabinet loader. Resample the front of the IR to host rate,
+    // preserving transient shape. Long-room tails are intentionally truncated.
+    const double hostRate=getSampleRate()>0?getSampleRate():reader->sampleRate;
+    const double ratio=reader->sampleRate/hostRate;
+    const int wanted=juce::jlimit(1,sdsp::maxIR*4,(int)std::ceil(sdsp::maxIR*ratio)+2);
+    const int readCount=(int)juce::jmin<juce::int64>(wanted,reader->lengthInSamples);
+    juce::AudioBuffer<float> temp((int)juce::jmin(2u,reader->numChannels),readCount);
+    if(!reader->read(&temp,0,readCount,0,true,true)){error="Could not decode IR.";return false;}
+    const int length=juce::jmin(sdsp::maxIR,(int)std::ceil(readCount/ratio));
+    std::array<float,sdsp::maxIR> taps{};
+    float max=0;
+    for(int i=0;i<length;++i) {
+        const double readPos=i*ratio;
+        const int a=juce::jlimit(0,readCount-1,(int)readPos),b=juce::jmin(readCount-1,a+1);
+        const float frac=(float)(readPos-a);
+        taps[(size_t)i]=temp.getSample(0,a)*(1-frac)+temp.getSample(0,b)*frac;
+        max=std::max(max,std::abs(taps[(size_t)i]));
+    }
+    if(max<1e-9f){error="IR contains silence.";return false;}
+    for(int i=0;i<length;++i) taps[(size_t)i]*=.8f/max;
+    {
+        const juce::ScopedLock lock(irLock);
+        pendingImpulse=taps;pendingLength=length;impulseUpdate=true;irName=file.getFileName();
+    }
+    setParam(apvts,"irOn",1);
+    return true;
+}
+void SishhinDSPAudioProcessor::clearIR(){
+    const juce::ScopedLock lock(irLock);
+    pendingLength=0;impulseUpdate=true;irName.clear();
+}
+juce::String SishhinDSPAudioProcessor::currentIRName() const {
+    const juce::ScopedLock lock(irLock);
+    return irName;
+}
+juce::File SishhinDSPAudioProcessor::presetFolder() {
+    auto dir=juce::File::getSpecialLocation(juce::File::userDocumentsDirectory)
+                  .getChildFile("SishhinDSP").getChildFile("Presets");
+    dir.createDirectory();return dir;
+}
+bool SishhinDSPAudioProcessor::saveUserPreset(const juce::String& name) {
+    const auto filename=juce::File::createLegalFileName(name)+".sdsp";
+    juce::MemoryBlock state;
+    getStateInformation(state);
+    return state.getSize()>0 && presetFolder().getChildFile(filename).replaceWithData(state.getData(),state.getSize());
+}
+bool SishhinDSPAudioProcessor::loadUserPreset(const juce::String& name) {
+    auto file=presetFolder().getChildFile(juce::File::createLegalFileName(name)+".sdsp");
+    juce::MemoryBlock state;
+    if(!file.existsAsFile() || !file.loadFileAsData(state))return false;
+    setStateInformation(state.getData(),(int)state.getSize());return true;
+}
+juce::StringArray SishhinDSPAudioProcessor::userPresetNames() const {
+    juce::StringArray result;
+    for(auto f:presetFolder().findChildFiles(juce::File::findFiles,false,"*.sdsp")) result.add(f.getFileNameWithoutExtension());
+    result.sort(true);return result;
+}
+juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter(){return new SishhinDSPAudioProcessor();}
