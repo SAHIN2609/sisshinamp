@@ -38,7 +38,16 @@ SishhinDSPAudioProcessorEditor::getResource(const juce::String& path)
 
 juce::WebBrowserComponent::Options SishhinDSPAudioProcessorEditor::makeOptions()
 {
-    auto options = juce::WebBrowserComponent::Options{}.withNativeIntegrationEnabled();
+    auto options = juce::WebBrowserComponent::Options{}
+        .withNativeIntegrationEnabled()
+        // Execute before page scripts to block the standard WebView context menu
+        // on Windows WebView2 and macOS WKWebView (also set in interface.html).
+        .withUserScript(R"JS(
+            document.addEventListener("contextmenu", function(event) {
+                event.preventDefault();
+                event.stopImmediatePropagation();
+            }, true);
+        )JS");
 
 #if JUCE_WINDOWS
     // The Edge WebView2 user-data folder must be writable inside third-party DAWs.
@@ -48,7 +57,9 @@ juce::WebBrowserComponent::Options SishhinDSPAudioProcessorEditor::makeOptions()
     options = options
         .withBackend(juce::WebBrowserComponent::Options::Backend::webview2)
         .withWinWebView2Options(juce::WebBrowserComponent::Options::WinWebView2{}
-                                   .withUserDataFolder(dataDir));
+                                   .withUserDataFolder(dataDir)
+                                   .withStatusBarDisabled()
+                                   .withBuiltInErrorPageDisabled());
 #endif
 
     return options
