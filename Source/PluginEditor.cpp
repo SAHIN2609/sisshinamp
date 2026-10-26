@@ -45,7 +45,6 @@ juce::WebBrowserComponent::Options SishhinDSPAudioProcessorEditor::makeOptions()
         .withUserScript(R"JS(
             document.addEventListener("contextmenu", function(event) {
                 event.preventDefault();
-                event.stopImmediatePropagation();
             }, true);
         )JS");
 
@@ -72,6 +71,28 @@ juce::WebBrowserComponent::Options SishhinDSPAudioProcessorEditor::makeOptions()
         .withEventListener("sdspParameter", [this](juce::var v) { handleParameter(std::move(v)); })
         .withEventListener("sdspBatch", [this](juce::var v) { handleBatch(std::move(v)); })
         .withEventListener("sdspProgram", [this](juce::var v) { handleProgram(std::move(v)); })
+        .withEventListener("sdspTunerToggle", [this](juce::var v)
+        {
+            if(const auto* obj=v.getDynamicObject())
+                tunerActive=(bool)obj->getProperty("enabled");
+            lastSnapshot.clear();
+        })
+        .withEventListener("sdspMidiLearn", [this](juce::var v)
+        {
+            if(const auto* obj=v.getDynamicObject())
+                processor.startMidiLearn(obj->getProperty("target").toString());
+            lastSnapshot.clear();
+        })
+        .withEventListener("sdspMidiCancelLearn", [this](juce::var)
+        {
+            processor.cancelMidiLearn();
+            lastSnapshot.clear();
+        })
+        .withEventListener("sdspMidiMappingsSet", [this](juce::var v)
+        {
+            processor.setMidiMappings(v);
+            lastSnapshot.clear();
+        })
         .withEventListener("sdspFactoryIR", [this](juce::var v)
         {
             if (const auto* object = v.getDynamicObject())
@@ -275,6 +296,10 @@ void SishhinDSPAudioProcessorEditor::sendSnapshot()
     obj->setProperty("program", processor.getCurrentProgram());
     obj->setProperty("irName", processor.currentIRName());
     obj->setProperty("irBankIndex", processor.selectedFactoryIR());
+    obj->setProperty("tunerHz", tunerActive?processor.detectTunerPitchHz():0.f);
+    obj->setProperty("tunerActive", tunerActive);
+    obj->setProperty("midiMappings", processor.getMidiMappings());
+    obj->setProperty("midiLearnTarget",processor.currentMidiLearnTarget());
     obj->setProperty("inputPeak", processor.lastInputPeak.load());
     obj->setProperty("outputPeak", processor.lastOutputPeak.load());
 
