@@ -72,12 +72,16 @@ int main() {
           &&distinct(c.rms,singleMic.rms)&&std::abs(ribbon.avgDiff-c.avgDiff)>1.e-6
           &&distinct(c.rms,cabinet.rms)&&distinct(c.rms,eq.rms)&&distinct(c.rms,pedal.rms)
           &&distinct(c.rms,bypass.rms);
-    const auto cleanHarmonics=thirdHarmonicRatio(0,3.f,false);
+    const auto cleanHarmonics=thirdHarmonicRatio(0,7.f,false);
+    const auto thickHarmonics=thirdHarmonicRatio(2,7.f,false);
     const auto metalHarmonics=thirdHarmonicRatio(1,8.f,true);
+    // Clean and Thick should not resemble square-wave fuzz even at gain 7.
     ok=ok && std::isfinite(cleanHarmonics) && std::isfinite(metalHarmonics)
+          && std::isfinite(thickHarmonics)
+          && cleanHarmonics<.16 && thickHarmonics<.25
           && metalHarmonics>cleanHarmonics*1.15;
-    std::printf("Clean 3rd harmonic/fundamental %.4f; Taki Metal %.4f\n",
-                cleanHarmonics,metalHarmonics);
+    std::printf("Clean 3rd harmonic/fundamental %.4f; Thick %.4f; Taki Metal %.4f\n",
+                cleanHarmonics,thickHarmonics,metalHarmonics);
     std::printf("Clean RMS %.6f; Metal %.6f; Thick %.6f; IR %.6f; shifted %.6f; ribbon %.6f; bypass %.6f; cab %.6f; eq %.6f; drive %.6f\n",
                 c.rms,m.rms,t.rms,ir.rms,shift.rms,ribbon.rms,bypass.rms,cabinet.rms,eq.rms,pedal.rms);
     if(!ok)std::fprintf(stderr,"SishhinDSP DSP regression test failed.\n");
