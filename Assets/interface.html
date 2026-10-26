@@ -553,7 +553,7 @@ else if(g('#dl')){if(cur>=72){US.splice(cur-72,1);store();build();go(0)}}
 $('#nm').addEventListener('keydown',e=>{const n=e.target;if(e.key=='Escape'){n.hidden=true;n.value=''}
 if(e.key=='Enter'&&n.value.trim()){US.push({name:n.value.trim(),s:clone(S)});store();build();go(FAC.length+US.length-1);n.hidden=true;n.value=''}});
 
-$('#midi').addEventListener('click',async()=>{try{const a=await navigator.requestMIDIAccess();a.inputs.forEach(i=>i.onmidimessage=m=>{if((m.data[0]&240)==192)go(m.data[1]%L().length)});$('#ms').textContent=a.inputs.size+' MIDI IN · PROGRAM CHANGE 0–71'}catch(x){$('#ms').textContent='MIDI NOT AVAILABLE HERE'}});
+// MIDI CC, note, program change and MIDI Learn use the native JUCE bridge.
 build();go(0);
 </script><script>
 // JUCE plugin UI: disable browser context menus, image dragging and text-selection
