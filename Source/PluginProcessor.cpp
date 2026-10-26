@@ -83,9 +83,20 @@ Layout SishhinDSPAudioProcessor::createLayout() {
 SishhinDSPAudioProcessor::SishhinDSPAudioProcessor()
     : AudioProcessor(BusesProperties().withInput("Guitar In",juce::AudioChannelSet::stereo(),true)
                                   .withOutput("Out",juce::AudioChannelSet::stereo(),true)),
-      apvts(*this,nullptr,"SISHHINDSP",createLayout()) {selectFactoryPreset(0);}
+      apvts(*this,nullptr,"SISHHINDSP",createLayout()) {
+    for(auto& sample:tunerRing) sample.store(0.f);
+    selectFactoryPreset(0);
+}
 
-void SishhinDSPAudioProcessor::prepareToPlay(double sr,int maxBlock) {engine.prepare(sr,maxBlock);floatScratch.setSize(2,maxBlock);}
+void SishhinDSPAudioProcessor::prepareToPlay(double sr,int maxBlock) {
+    engine.prepare(sr,maxBlock);
+    floatScratch.setSize(2,maxBlock);
+    tunerStride=std::max(1,(int)std::lround(sr/12000.0));
+    tunerCaptureRate=(float)(sr/tunerStride);
+    tunerCounter=0;
+    tunerWrite.store(0);
+    for(auto& sample:tunerRing)sample.store(0.f);
+}
 void SishhinDSPAudioProcessor::releaseResources() {engine.reset();}
 bool SishhinDSPAudioProcessor::isBusesLayoutSupported(const BusesLayout& layouts) const {
     const auto in=layouts.getMainInputChannelSet(), out=layouts.getMainOutputChannelSet();
@@ -129,7 +140,24 @@ void SishhinDSPAudioProcessor::processBlock(juce::AudioBuffer<float>& b,juce::Mi
     juce::ScopedNoDenormals guard;
     for(const auto metadata:midi) {
         const auto msg=metadata.getMessage();
-        if(msg.isProgramChange()) {requestedProgram.store(msg.getProgramChangeNumber()%72);triggerAsyncUpdate();}
+        int kind=0,number=0,value=0;
+        if(msg.isController()) {
+            kind=1;number=msg.getControllerNumber();value=msg.getControllerValue();
+        } else if(msg.isProgramChange()) {
+            kind=2;number=msg.getProgramChangeNumber();
+        } else if(msg.isNoteOn()) {
+            kind=3;number=msg.getNoteNumber();value=msg.getVelocity();
+        } else if(msg.isNoteOff()) {
+            kind=4;number=msg.getNoteNumber();
+        }
+        if(kind!=0) {
+            // Messages are packed atomically, then serviced on JUCE's message
+            // thread. Audio callbacks never allocate or edit host parameters.
+            const int event=(kind<<24)|((msg.getChannel()&0xff)<<16)
+                |((number&0xff)<<8)|(value&0xff);
+            pendingMidiEvent.store(event,std::memory_order_release);
+            triggerAsyncUpdate();
+        }
     }
     pushIRToEngine();
     const auto p=collectParameters();
@@ -150,6 +178,12 @@ void SishhinDSPAudioProcessor::processBlock(juce::AudioBuffer<float>& b,juce::Mi
             x0=x1=mono;
         }
         inPeak=std::max(inPeak,std::max(std::abs(x0),std::abs(x1)));
+        if(++tunerCounter>=tunerStride) {
+            tunerCounter=0;
+            const unsigned write=tunerWrite.load(std::memory_order_relaxed);
+            tunerRing[write & (tunerRingSize-1)].store(x0,std::memory_order_relaxed);
+            tunerWrite.store(write+1,std::memory_order_release);
+        }
         const auto y0=engine.processSample(0,x0,p);
         b.setSample(0,i,y0);
         outPeak=std::max(outPeak,std::abs(y0));
@@ -191,6 +225,8 @@ void SishhinDSPAudioProcessor::setCurrentProgram(int index){
 void SishhinDSPAudioProcessor::handleAsyncUpdate() {
     const int program=requestedProgram.exchange(-1);
     if(program>=0)selectFactoryPreset(program);
+    const int event=pendingMidiEvent.exchange(-1,std::memory_order_acq_rel);
+    if(event>=0)handleIncomingMidiEvent(event);
 }
 void SishhinDSPAudioProcessor::selectFactoryPreset(int ix) {
     ix=juce::jlimit(0,71,ix); const int a=ix/24,i=ix%24;
@@ -244,6 +280,7 @@ void SishhinDSPAudioProcessor::getStateInformation(juce::MemoryBlock& dest) {
         state.setProperty("irName",irName,nullptr);
         state.setProperty("factoryProgram",currentProgram.load(),nullptr);
         state.setProperty("factoryIRIndex",currentFactoryIR.load(),nullptr);
+        state.setProperty("midiMappings",juce::JSON::toString(getMidiMappings()),nullptr);
         juce::MemoryBlock raw(pendingImpulse.data(),(size_t)pendingLength*sizeof(float));
         state.setProperty("irTaps",raw.toBase64Encoding(),nullptr);
     }
@@ -266,6 +303,8 @@ void SishhinDSPAudioProcessor::setStateInformation(const void* data,int size) {
             apvts.replaceState(state);
             currentProgram.store(juce::jlimit(0,71,(int)state.getProperty("factoryProgram",0)));
             currentFactoryIR.store(juce::jlimit(-1,71,(int)state.getProperty("factoryIRIndex",-1)));
+            const auto mappings=juce::JSON::parse(state.getProperty("midiMappings").toString());
+            setMidiMappings(mappings);
         }
     }
 }
