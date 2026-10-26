@@ -35,6 +35,9 @@ void AmpEngine::Channel::reset() noexcept {
     inputHigh.reset(); bass.reset(); mid.reset(); high.reset(); presence.reset(); body.reset();
     cabinetHigh.reset(); cabinetLow.reset(); irHigh.reset(); irLow.reset();
     micAHigh.reset(); micALow.reset(); micBHigh.reset(); micBLow.reset();
+    metalPreHigh.reset(); metalPreLow.reset();
+    metalInterHigh.reset(); metalInterLow.reset();
+    metalLowMid.reset(); metalPostLow.reset(); metalBite.reset();
     for(auto& band:eq) band.reset();
     irHistory.fill(0); irPos=0;
     std::fill(echo.begin(), echo.end(), 0.f);
@@ -74,6 +77,16 @@ void AmpEngine::configure(const Parameters& p) noexcept {
     const int cab=std::max(0,std::min(2,p.cab));
     for(auto& c:channels) {
         c.inputHigh.highpass(sampleRate, hp[std::max(0,std::min(2,p.amp))]);
+        // The metal amp is *not* just fuzz on top of full-band DI.
+        // Tight bass removal before the preamp stops low notes from smearing;
+        // band-limited interstage clipping reduces the sizzly square-wave top.
+        c.metalPreHigh.highpass(sampleRate, 142.f, .72f);
+        c.metalPreLow.lowpass(sampleRate, 6300.f, .707f);
+        c.metalInterHigh.highpass(sampleRate, 105.f, .707f);
+        c.metalInterLow.lowpass(sampleRate, 5400.f, .707f);
+        c.metalLowMid.peak(sampleRate, 335.f, .85f, -3.4f);
+        c.metalPostLow.lowpass(sampleRate, 6250.f, .707f);
+        c.metalBite.peak(sampleRate, 1720.f, .8f, 2.8f);
         c.bass.shelf(sampleRate,140, (p.bass-5)*2.4f + (p.amp==2?3.f:0.f),false);
         c.mid.peak(sampleRate, 750, .8f,(p.mid-5)*2.4f+(p.amp==2?2.f:-.5f));
         c.high.shelf(sampleRate,3000,(p.treb-5)*2.1f,true);
@@ -157,20 +170,39 @@ float AmpEngine::processSample(int chIndex,float x,const Parameters& p) noexcept
         x+=warm*(p.pedals[2][1]/10.f)*.32f;
         x*=1.f+p.pedals[2][2]*.12f;
     }
-    if(p.pedalOn[1]) { // EDGE: preamp overdrive
-        const float amount=p.pedals[1][0]/10.f;
-        const float distorted=soft(x*(1.3f+amount*13.f))*(.65f+.065f*p.pedals[1][2]);
-        x=x*(1-amount*.86f)+distorted*amount*.86f;
-    }
-    const float drive=clamp(p.gain,0,10)/10.f;
     const int amp=std::max(0,std::min(2,p.amp));
+    if(p.pedalOn[1]) { // EDGE: overdrive; Taki uses a restrained TS-style pre-boost
+        const float amount=clamp(p.pedals[1][0],0.f,10.f)/10.f;
+        if(amp==1) {
+            // Mild pre-boost instead of over-clipping the already high-gain Taki.
+            // The TONE parameter changes how hard this drive stage pushes.
+            const float tone=(p.pedals[1][1]-5.f)*.035f;
+            const float drive=1.20f+amount*2.15f;
+            x=soft(x*drive)*(.76f+.042f*p.pedals[1][2]+tone);
+        } else {
+            const float distorted=soft(x*(1.3f+amount*13.f))*(.65f+.065f*p.pedals[1][2]);
+            x=x*(1-amount*.86f)+distorted*amount*.86f;
+        }
+    }
+    const float drive=clamp(p.gain,0.f,10.f)/10.f;
     if(amp==0) { // SAKURA CLEAN: high headroom, soft knee, preserved attack
         x=soft(x*(1.f+drive*2.7f)) / (1.f+drive*.55f);
         x*=.78f;
-    } else if(amp==1) { // TAKI METAL: boosted preamp, tight multi-stage clipping
-        const float boosted=soft(x*(3.f+drive*20.f));
-        const float stage2=soft((boosted*.86f+x*.20f)*(2.6f+drive*8.f));
-        x=soft(stage2*2.5f)*.43f;
+    } else if(amp==1) { // TAKI METAL: tight high-gain preamp, not full-band fuzz
+        // Preserve the initial pick transient, then high-pass the DI before
+        // the distortion stages to remove sub-bass intermodulation mud.
+        const float attack=x;
+        float tight=ch.metalPreHigh.tick(x);
+        tight=ch.metalPreLow.tick(tight);
+        const float stage1=soft(tight*(2.35f+drive*6.45f));
+        float mid=ch.metalInterHigh.tick(stage1);
+        mid=ch.metalInterLow.tick(mid);
+        mid=ch.metalLowMid.tick(mid);
+        // A second controlled gain stage provides saturated metal sustain.
+        const float stage2=soft((mid*.91f+tight*.12f)*(1.55f+drive*4.35f));
+        // Small dry transient plus controlled post shaping keeps note definition.
+        x=ch.metalPostLow.tick(stage2*.57f+attack*(.065f-.03f*drive));
+        x=ch.metalBite.tick(x);
     } else { // TAKE THICK: asymmetrical, low-mid-rich saturation
         const float warm=soft(x*(2.3f+drive*7.5f)+.17f)-soft(.17f);
         x=soft(warm*1.7f+x*.3f)*.64f;
