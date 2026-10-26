@@ -123,7 +123,7 @@ body{margin:0;background:var(--page);font:500 12px Inter,system-ui,sans-serif;pa
 .foot button{background:none;border:0;font:inherit;color:inherit;cursor:pointer;padding:0}
 .foot button:disabled{opacity:.45;cursor:default}#midi{color:#2b3a66}#lg{color:var(--cu)}.foot em{margin-left:auto;font-style:normal;opacity:.7}
 .cap{max-width:1060px;margin:12px auto 0;text-align:center;font-size:11px;color:var(--cap)}
-</style></head><body>
+</style></head><body oncontextmenu="return false;">
 <div class="win">
 <div class="tb"><span id="ttl">SishhinDSP</span></div>
 <nav class="tabs" id="tabs"></nav>
@@ -235,4 +235,17 @@ if(e.key=='Enter'&&n.value.trim()){US.push({name:n.value.trim(),s:clone(S)});sto
 $('#lf').addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{LOGO=r.result;try{localStorage.setItem('sdsp-logo',LOGO)}catch(x){}view()};r.readAsDataURL(f)});
 $('#midi').addEventListener('click',async()=>{try{const a=await navigator.requestMIDIAccess();a.inputs.forEach(i=>i.onmidimessage=m=>{if((m.data[0]&240)==192)go(m.data[1]%L().length)});$('#ms').textContent=a.inputs.size+' MIDI IN · PROGRAM CHANGE 0–71'}catch(x){$('#ms').textContent='MIDI NOT AVAILABLE HERE'}});
 build();go(0);
+</script><script>
+// JUCE plugin UI: disable browser context menus, image dragging and text-selection
+// shortcuts. Knob dragging, preset menus, IR file import and keyboard arrows still work.
+document.addEventListener('contextmenu', function (event) {
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  return false;
+}, true);
+document.addEventListener('dragstart', function (event) {
+  if (event.target.closest && event.target.closest('img, svg, .face, .amp, .logo')) {
+    event.preventDefault();
+  }
+}, true);
 </script><script src="bridge.js"></script></body></html>
