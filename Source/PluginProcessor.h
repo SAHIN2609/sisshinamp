@@ -79,6 +79,7 @@ private:
     // MIDI is decoded on the real-time thread and applied on JUCE message
     // thread via AsyncUpdater; no APVTS edit or allocation inside processBlock.
     std::atomic<int> pendingMidiEvent {-1};
+    mutable juce::CriticalSection midiMapLock;
     std::vector<MidiMapping> midiMappings;
     juce::String midiLearnTarget;
     void handleIncomingMidiEvent(int encoded);
