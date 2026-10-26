@@ -1,5 +1,43 @@
 # SishhinDSP — HTML WebView VST3 and Standalone (JUCE 8)
 
+## Live tuner and DAW MIDI mappings
+
+The WebView's **TUNER** button is enabled. It opens a tuner overlay which
+reads the **raw guitar DI before any cabinet, amplifier or pedals** and shows
+a detected note, frequency in Hz, and cents relative to A440. The native
+processor uses a lock-free, decimated input capture and a YIN-style pitch
+detector on the UI thread; the tuner never records audio or sends it to a
+network service. It requires an input signal in the DAW.
+
+**LOAD LOGO** and its hidden image-upload input have been removed from the
+plugin interface. The bundled Japanese amp logo remains in place.
+
+Click **MIDI MAPPINGS** for a dialog resembling the familiar amp-plugin MIDI
+assignment workflow. Map CC Absolute values to real JUCE parameters, assign
+note-on/off messages, and assign specific MIDI Program Changes to factory
+presets. Channel 0 (Omni) or channels 1–16 are supported, and unassigned
+Program Changes 0–71 still select the corresponding factory preset. Right
+click a knob, slider, amp choice, pedal switch or preset menu to choose
+**Enable MIDI Learn** or **Open MIDI Mappings**. The standard browser right-click
+menu stays suppressed. Mapping rows are saved in the DAW plugin state.
+
+MIDI messages must be routed from the DAW to SishhinDSP; the plugin does not
+request browser USB/Web MIDI permissions. CC learning and assignments are
+applied on JUCE's message thread, not inside the real-time audio callback.
+The MIDI event bridge uses a single latest-event slot, so extremely fast
+simultaneous MIDI streams can drop intermediate events; regular footswitch
+and expression-control messages are supported.
+
+## Cleaner Sakura and Take voicings
+
+Sakura CLEAN now has a largely linear, high-headroom preamp with only gentle
+soft limiting on large peaks; Take THICK uses low-mid body shaping, mild
+compression and substantial dry blend rather than multiple fuzz-like
+distortion stages. WEIGHT's pre-amp boost is limited to avoid unexpected
+overdrive. Taki METAL retains its tighter, distinct multi-stage saturation.
+Expanded DSP regression tests check that Clean and Thick stay below
+fuzz-like third-harmonic thresholds on a reference guitar test signal.
+
 ## Updated amp selector and modern Taki Metal voicing
 
 The AMP page's three selector cards now display miniature amplifier heads
@@ -127,8 +165,7 @@ ctest --test-dir test-build -C Release --output-on-failure
   resampled FIR taps are used (not a full-length convolution reverb).
 - The original browser MIDI-access popup is replaced with a help message:
   MIDI Program Change 0–71 works through MIDI sent to the plugin from the DAW.
-- The reference HTML has a disabled TUNER control. It remains disabled here;
-  a native tuner algorithm is **not** implemented.
+- TUNER now uses native pitch detection on the raw guitar input; see above.
 
 ## Audio pipeline
 
