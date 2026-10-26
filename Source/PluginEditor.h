@@ -43,6 +43,7 @@ private:
     SishhinDSPAudioProcessor& processor;
     Page browser;
     bool browserReady = false;
+    bool tunerActive = false;
     juce::String lastSnapshot;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(SishhinDSPAudioProcessorEditor)
