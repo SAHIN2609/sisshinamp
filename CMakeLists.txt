@@ -43,7 +43,27 @@ if(SDSP_BUILD_PLUGIN)
         NEEDS_WEBVIEW2 TRUE
     )
     juce_generate_juce_header(SishhinDSP)
-    juce_add_binary_data(SishhinAssets SOURCES Assets/sishhin_logo.png Assets/interface.html Assets/bridge.js)
+
+    # Only the short FIR excerpts are embedded in the binary (~216 KiB).
+    # Full, meaningful 96 kHz room/cab responses are packaged as .wav resources
+    # by GitHub Actions; they do not make the DAW's audio callback allocate RAM.
+    find_package(Python3 COMPONENTS Interpreter REQUIRED)
+    set(SDSP_IR_SHORT_DIR "${CMAKE_CURRENT_BINARY_DIR}/GeneratedIR")
+    file(MAKE_DIRECTORY "${SDSP_IR_SHORT_DIR}")
+    execute_process(
+        COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_ir_bank.py"
+                --dest "${SDSP_IR_SHORT_DIR}"
+        RESULT_VARIABLE SDSP_IR_GENERATOR_STATUS
+        OUTPUT_VARIABLE SDSP_IR_GENERATOR_LOG
+        ERROR_VARIABLE SDSP_IR_GENERATOR_ERROR
+    )
+    if(NOT SDSP_IR_GENERATOR_STATUS EQUAL 0)
+        message(FATAL_ERROR "Unable to prepare cabinet IR profiles: ${SDSP_IR_GENERATOR_ERROR}")
+    endif()
+    message(STATUS "${SDSP_IR_GENERATOR_LOG}")
+    juce_add_binary_data(SishhinAssets SOURCES
+        Assets/sishhin_logo.png Assets/interface.html Assets/bridge.js
+        "${SDSP_IR_SHORT_DIR}/ir_bank_short.bin")
     target_sources(SishhinDSP PRIVATE
         Source/PluginProcessor.h Source/PluginProcessor.cpp
         Source/PluginEditor.h Source/PluginEditor.cpp
