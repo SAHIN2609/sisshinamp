@@ -44,6 +44,13 @@ def main():
         "Contextmenu capture installed": "document.addEventListener('contextmenu'" in markup,
         "No browser traffic lights": 'style="background:#ff5f57"' not in markup,
         "Realistic amp hardware": "amp-plaque" in markup and "amp-screw" in markup,
+        "Selector mini-amps match full heads": all(
+            name in markup for name in (
+                "mini-grill", "mini-plate", "mini-handle", "mini-knobs",
+                ".sel3 .m0 .mini-grill", ".sel3 .m1 .mini-grill",
+                ".sel3 .m2 .mini-grill"
+            )
+        ),
         "Native bridge loaded": '<script src="bridge.js"></script>' in markup,
         "Factory cabinet library": 'id="irbanklist"' in markup,
         "HTML logo retained": "DEFLOGO=" in markup
