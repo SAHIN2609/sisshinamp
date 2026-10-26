@@ -1,6 +1,8 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
+#include <BinaryData.h>
 #include <cmath>
+#include <cstring>
 
 namespace {
 using Layout=juce::AudioProcessorValueTreeState::ParameterLayout;
@@ -234,6 +236,7 @@ void SishhinDSPAudioProcessor::getStateInformation(juce::MemoryBlock& dest) {
         const juce::ScopedLock lock(irLock);
         state.setProperty("irName",irName,nullptr);
         state.setProperty("factoryProgram",currentProgram.load(),nullptr);
+        state.setProperty("factoryIRIndex",currentFactoryIR.load(),nullptr);
         juce::MemoryBlock raw(pendingImpulse.data(),(size_t)pendingLength*sizeof(float));
         state.setProperty("irTaps",raw.toBase64Encoding(),nullptr);
     }
@@ -255,8 +258,32 @@ void SishhinDSPAudioProcessor::setStateInformation(const void* data,int size) {
             }
             apvts.replaceState(state);
             currentProgram.store(juce::jlimit(0,71,(int)state.getProperty("factoryProgram",0)));
+            currentFactoryIR.store(juce::jlimit(-1,71,(int)state.getProperty("factoryIRIndex",-1)));
         }
     }
+}
+bool SishhinDSPAudioProcessor::loadFactoryIR(int index) {
+    if(index<0 || index>=72) return false;
+    constexpr size_t bytesPerIR=(size_t)sdsp::maxIR*sizeof(float);
+    if((size_t)BinaryData::ir_bank_short_binSize < 72*bytesPerIR) return false;
+    std::array<float,sdsp::maxIR> taps {};
+    std::memcpy(taps.data(),
+                BinaryData::ir_bank_short_bin + (size_t)index*bytesPerIR,
+                bytesPerIR);
+    static constexpr const char* cabs[]={"1x12_Open","4x12_Modern","2x12_Oversized"};
+    static constexpr const char* mics[]={"Dynamic57","Ribbon121","Condenser87","Dynamic421"};
+    static constexpr const char* positions[]={"Center","CapEdge","Cone","Mid","Edge","Room"};
+    const int cab=index/24, mic=(index/6)%4, position=index%6;
+    {
+        const juce::ScopedLock lock(irLock);
+        pendingImpulse=taps;
+        pendingLength=sdsp::maxIR;
+        impulseUpdate=true;
+        irName=juce::String(cabs[cab])+"__"+mics[mic]+"__"+positions[position]+".wav";
+        currentFactoryIR.store(index);
+    }
+    setParam(apvts,"irOn",1.f);
+    return true;
 }
 bool SishhinDSPAudioProcessor::loadIRFile(const juce::File& file,juce::String& error) {
     juce::AudioFormatManager formats;
@@ -287,6 +314,7 @@ bool SishhinDSPAudioProcessor::loadIRFile(const juce::File& file,juce::String& e
     {
         const juce::ScopedLock lock(irLock);
         pendingImpulse=taps;pendingLength=length;impulseUpdate=true;irName=file.getFileName();
+        currentFactoryIR.store(-1);
     }
     setParam(apvts,"irOn",1);
     return true;
@@ -315,7 +343,7 @@ bool SishhinDSPAudioProcessor::loadIRData(const juce::MemoryBlock& data,
 }
 void SishhinDSPAudioProcessor::clearIR(){
     const juce::ScopedLock lock(irLock);
-    pendingLength=0;impulseUpdate=true;irName.clear();
+    pendingLength=0;impulseUpdate=true;irName.clear();currentFactoryIR.store(-1);
 }
 juce::String SishhinDSPAudioProcessor::currentIRName() const {
     const juce::ScopedLock lock(irLock);
