@@ -32,6 +32,8 @@ public:
     juce::AudioProcessorValueTreeState apvts;
     void selectFactoryPreset(int index);
     bool loadIRFile(const juce::File& file, juce::String& error);
+    bool loadFactoryIR(int index);
+    int selectedFactoryIR() const noexcept { return currentFactoryIR.load(); }
     bool loadIRData(const juce::MemoryBlock& data, const juce::String& filename, juce::String& error);
     void clearIR();
     juce::String currentIRName() const;
@@ -51,6 +53,7 @@ private:
     mutable juce::CriticalSection irLock;
     juce::String irName;
     std::atomic<int> currentProgram {0};
+    std::atomic<int> currentFactoryIR {-1};
     sdsp::Parameters collectParameters() const noexcept;
     float get(const char* id) const noexcept;
     void pushIRToEngine() noexcept;
