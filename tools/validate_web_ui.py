@@ -52,6 +52,11 @@ def main():
             )
         ),
         "Native bridge loaded": '<script src="bridge.js"></script>' in markup,
+        "Working tuner button": '<button id="tuner"' in markup and 'button disabled' not in markup,
+        "Custom MIDI mappings button": '<button id="midi"' in markup and 'MIDI MAPPINGS' in markup,
+        "Removed logo uploader": 'id="lg"' not in markup and 'id="lf"' not in markup
+                                 and 'LOAD LOGO' not in markup,
+        "Right click can reach MIDI learn": "stopImmediatePropagation()" not in markup,
         "Factory cabinet library": 'id="irbanklist"' in markup,
         "HTML logo retained": "DEFLOGO=" in markup
     }
@@ -67,6 +72,12 @@ def main():
             script.write_text("".join(fragments), encoding="utf8")
             subprocess.run(["node", "--check", str(script)], check=True)
         subprocess.run(["node", "--check", str(BRIDGE)], check=True)
+    bridge=BRIDGE.read_text(encoding="utf8")
+    for event in ("sdspTunerToggle","sdspMidiLearn","sdspMidiMappingsSet",
+                  "sdspTunerDialog","sdspMidiDialog","contextmenu"):
+        if event not in bridge:
+            print(f"FAIL: Missing native tuner/MIDI bridge event: {event}")
+            return 1
     print(f"PASS: Node parsed {len(parser.parts)} inline script(s) plus bridge.js")
     return 0
 
