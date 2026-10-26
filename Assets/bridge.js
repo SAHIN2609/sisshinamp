@@ -189,7 +189,7 @@
     const hzNode = document.querySelector("#sdspTunerFrequency");
     const centsNode = document.querySelector("#sdspTunerCents");
     const needle = document.querySelector("#sdspTunerNeedle");
-    if (!(raw > 45 && raw < 1100)) {
+    if (!(raw >= 35 && raw <= 1100)) {
       smoothTunerHz = 0;
       noteNode.textContent = "—";
       hzNode.textContent = "PLAY A SINGLE STRING";
