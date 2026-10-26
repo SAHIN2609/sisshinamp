@@ -19,11 +19,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Validate embedded HTML and bridge
+      - name: Validate embedded HTML and JavaScript
         shell: bash
-        run: |
-          node --check Assets/bridge.js
-          python -c "from pathlib import Path; h=Path('Assets/interface.html').read_text(encoding='utf-8'); assert '<script src=\"bridge.js\"></script>' in h; assert 'SishhinDSP' in h"
+        run: python tools/validate_web_ui.py
       - name: Generate high-resolution cabinet and room IR bank
         shell: bash
         run: python tools/generate_ir_bank.py --dest build/GeneratedIR --full
