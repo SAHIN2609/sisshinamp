@@ -61,6 +61,17 @@ juce::WebBrowserComponent::Options SishhinDSPAudioProcessorEditor::makeOptions()
         .withEventListener("sdspParameter", [this](juce::var v) { handleParameter(std::move(v)); })
         .withEventListener("sdspBatch", [this](juce::var v) { handleBatch(std::move(v)); })
         .withEventListener("sdspProgram", [this](juce::var v) { handleProgram(std::move(v)); })
+        .withEventListener("sdspFactoryIR", [this](juce::var v)
+        {
+            if (const auto* object = v.getDynamicObject())
+            {
+                const int index = static_cast<int>(object->getProperty("index"));
+                if (!processor.loadFactoryIR(index))
+                    sendError("Could not load that factory cabinet IR.");
+                else
+                    lastSnapshot.clear();
+            }
+        })
         .withEventListener("sdspSavePreset", [this](juce::var v)
         {
             if (const auto* object = v.getDynamicObject())
@@ -252,6 +263,7 @@ void SishhinDSPAudioProcessorEditor::sendSnapshot()
     obj->setProperty("values", values);
     obj->setProperty("program", processor.getCurrentProgram());
     obj->setProperty("irName", processor.currentIRName());
+    obj->setProperty("irBankIndex", processor.selectedFactoryIR());
     obj->setProperty("inputPeak", processor.lastInputPeak.load());
     obj->setProperty("outputPeak", processor.lastOutputPeak.load());
 
