@@ -61,6 +61,11 @@ private:
     struct Channel {
         Biquad inputHigh, bass, mid, high, presence, body, cabinetHigh, cabinetLow, irHigh, irLow;
         Biquad micAHigh, micALow, micBHigh, micBLow;
+        // Dedicated Taki Metal tone shaping; separate state for every channel.
+        // Pre-cut lows before saturation, contour between gain stages and
+        // remove fizzy upper harmonics after clipping.
+        Biquad metalPreHigh, metalPreLow, metalInterHigh, metalInterLow;
+        Biquad metalLowMid, metalPostLow, metalBite;
         std::array<Biquad,9> eq;
         std::array<float,maxIR> irHistory{};
         int irPos=0;
