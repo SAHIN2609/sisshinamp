@@ -163,8 +163,9 @@ ctest --test-dir test-build -C Release --output-on-failure
   **native** engine and saved in the host plugin state as a short IR. JS only
   renders the waveform preview. For low CPU cost, only the first **768**
   resampled FIR taps are used (not a full-length convolution reverb).
-- The original browser MIDI-access popup is replaced with a help message:
-  MIDI Program Change 0–71 works through MIDI sent to the plugin from the DAW.
+- The original browser Web MIDI permission popup is gone. Use the native
+  **MIDI MAPPINGS** editor and right-click MIDI Learn; all incoming MIDI must
+  be routed through the DAW.
 - TUNER now uses native pitch detection on the raw guitar input; see above.
 
 ## Audio pipeline
