@@ -24,6 +24,9 @@ jobs:
         run: |
           node --check Assets/bridge.js
           python -c "from pathlib import Path; h=Path('Assets/interface.html').read_text(encoding='utf-8'); assert '<script src=\"bridge.js\"></script>' in h; assert 'SishhinDSP' in h"
+      - name: Generate high-resolution cabinet and room IR bank
+        shell: bash
+        run: python tools/generate_ir_bank.py --dest build/GeneratedIR --full
       - name: Install Windows WebView2 SDK
         if: runner.os == 'Windows'
         shell: pwsh
@@ -43,15 +46,37 @@ jobs:
       - name: Run DSP Tests
         shell: bash
         run: ctest --test-dir build -C Release --output-on-failure
-      - name: Stage binaries
+      - name: Stage VST3 with full usable IR library (100+ MiB)
         shell: bash
         run: |
-          mkdir -p dist
-          cp -R build/SishhinDSP_artefacts/Release/VST3/. dist/ 2>/dev/null || true
-          cp -R build/SishhinDSP_artefacts/Release/Standalone/. dist/ 2>/dev/null || true
-          cp -R build/SishhinDSP_artefacts/VST3/. dist/ 2>/dev/null || true
-          cp -R build/SishhinDSP_artefacts/Standalone/. dist/ 2>/dev/null || true
-          find dist -type f -o -type d | head -80
+          set -e
+          mkdir -p dist/VST3 dist/Standalone
+          vst3_dir="$(find build/SishhinDSP_artefacts -type d -name 'SishhinDSP.vst3' | head -n1)"
+          if [[ -z "$vst3_dir" ]]; then
+            echo "::error::The VST3 build output is missing"
+            exit 1
+          fi
+          mkdir -p "$vst3_dir/Contents/Resources/CabinetIRLibrary"
+          cp build/GeneratedIR/CabinetIRLibrary/*.wav "$vst3_dir/Contents/Resources/CabinetIRLibrary/"
+          cp build/GeneratedIR/manifest.json "$vst3_dir/Contents/Resources/CabinetIRLibrary/"
+          cp -R "$vst3_dir" dist/VST3/
+          for candidate in build/SishhinDSP_artefacts/Release/Standalone build/SishhinDSP_artefacts/Standalone; do
+            if [[ -d "$candidate" ]]; then
+              cp -R "$candidate/." dist/Standalone/
+            fi
+          done
+          python - <<'PY'
+          from pathlib import Path
+          bundles=list(Path("dist/VST3").glob("*.vst3"))
+          assert len(bundles)==1, f"Expected one plugin bundle, got {bundles}"
+          plugin=bundles[0]
+          bank=plugin/"Contents"/"Resources"/"CabinetIRLibrary"
+          recordings=list(bank.glob("*.wav"))
+          assert len(recordings)==72, f"Only {len(recordings)} cabinet/room WAVs bundled"
+          installed_size=sum(p.stat().st_size for p in plugin.rglob("*") if p.is_file())
+          assert installed_size > 100*1024*1024, f"Plugin is only {installed_size} bytes"
+          print(f"{plugin}: {installed_size/1048576:.1f} MiB installed")
+          PY
       - name: Upload results
         uses: actions/upload-artifact@v4
         with:
