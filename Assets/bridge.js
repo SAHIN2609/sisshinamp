@@ -70,6 +70,16 @@
     const mic = e.target.dataset && e.target.dataset.ms;
     if (mic === "a" || mic === "b")
       send("sdspParameter", { id: "mic" + mic + "Type", value: S["mic" + mic] });
+    if (e.target.id === "irbanklist") {
+      const index = Number(e.target.value);
+      if(Number.isInteger(index) && index>=0 && index<BANK_NAMES.length) {
+        S.bankIndex=index;
+        S.on.ir=true;
+        IR={name:BANK_NAMES[index],dur:5,sr:96000,ch:1,peaks:[]};
+        refreshIR();
+        send("sdspFactoryIR",{index});
+      }
+    }
   });
   document.addEventListener("click", e => {
     const el = selector => e.target.closest(selector);
@@ -88,6 +98,7 @@
       if (cur >= 72 && US[cur-72])
         send("sdspSavePreset", { name: US[cur-72].name });
     } else if (el("#irx")) {
+      S.bankIndex = -1;
       send("sdspClearIR", {});
     } else if (el("#eqr")) {
       for (let n=0;n<9;n++) send("sdspParameter", { id: "e" + n, value: 0 });
@@ -158,6 +169,7 @@
         else if (Object.prototype.hasOwnProperty.call(R, key) && key !== activeDrag)
           S.p[key] = number;
       }
+      S.bankIndex=typeof state.irBankIndex === "number" ? state.irBankIndex : -1;
       const irName=String(state.irName || "");
       if (irName && (!IR || IR.name !== irName)) {
         IR = { name:irName, dur:0, sr:48000, ch:1, peaks:[] };
@@ -171,6 +183,8 @@
           const a=document.querySelector("[data-ms=a]"),b=document.querySelector("[data-ms=b]");
           if (a) a.value=String(S.mica);
           if (b) b.value=String(S.micb);
+          const bankList=document.querySelector("#irbanklist");
+          if (bankList) bankList.value=String(S.bankIndex);
           const info=document.querySelector(".irm");
           if (info && irName) info.textContent=irName+" · NATIVE CAB IR";
         }
