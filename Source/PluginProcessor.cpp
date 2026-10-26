@@ -205,11 +205,11 @@ void SishhinDSPAudioProcessor::selectFactoryPreset(int ix) {
     setParam(apvts,"input",0.f);setParam(apvts,"out",0.f);setParam(apvts,"trans",0.f);
     // deterministic preset values, with audible differences
     const float q=(float)((i*17+a*7)%11)/10.f;
-    setParam(apvts,"gain", (a==0?2.0f:a==1?7.3f:5.8f)+q*(a==0?2.4f:1.6f));
-    setParam(apvts,"bass", a==2?7.5f:a==1?6.7f:5.f);
-    setParam(apvts,"mid", a==1?3.8f:a==2?6.9f:5.2f);
+    setParam(apvts,"gain", (a==0?2.0f:a==1?6.3f:5.8f)+q*(a==0?2.4f:a==1?1.9f:1.6f));
+    setParam(apvts,"bass", a==2?7.5f:a==1?5.8f:5.f);
+    setParam(apvts,"mid", a==1?5.2f:a==2?6.9f:5.2f);
     setParam(apvts,"treb", a==0?6.4f:a==1?6.0f:4.8f);
-    setParam(apvts,"pres", a==1?6.7f:4.6f);
+    setParam(apvts,"pres", a==1?5.7f:4.6f);
     setParam(apvts,"master",5.5f);setParam(apvts,"ao",5.f);
     setParam(apvts,"gate",a==1?-48.f:-64.f);
     setParam(apvts,"p0On",i%7==0?1.f:0.f);
@@ -223,6 +223,13 @@ void SishhinDSPAudioProcessor::selectFactoryPreset(int ix) {
     for(int pedal=0;pedal<5;++pedal) for(int dial=0;dial<3;++dial)
         setParam(apvts,"p"+juce::String(pedal)+"_"+juce::String(dial),
                  juce::jlimit(0.f,10.f,4.5f+(float)((i+pedal*3+dial*7)%9)*.46f));
+    // Metal presets use EDGE as a lightly clipped mid-boost, not an additional
+    // fuzz circuit fed into an already saturated amp.
+    if (a==1) {
+        setParam(apvts,"p1_0",2.4f+q*1.6f); // pedal drive
+        setParam(apvts,"p1_1",6.2f);        // pedal tone
+        setParam(apvts,"p1_2",6.0f);        // push the Taki input
+    }
     setParam(apvts,"apos",.12f+.07f*(float)(i%5));
     setParam(apvts,"bpos",.45f+.06f*(float)(i%5));
     setParam(apvts,"adist",.04f+.04f*(float)(i%7));
