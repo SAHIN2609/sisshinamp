@@ -1,5 +1,25 @@
 # SishhinDSP — HTML WebView VST3 and Standalone (JUCE 8)
 
+## Updated amp selector and modern Taki Metal voicing
+
+The AMP page's three selector cards now display miniature amplifier heads
+that match the main visual designs: Sakura cream woven/grilled cabinet, Taki
+black metal with amber backlighting, and Take deep-green tweed. Each includes
+a small nameplate, Japanese identity, miniature faceplate, input jack,
+controls, power light and handle. This updates only the visual selectors.
+
+Taki Metal's audio path now adds a dedicated high-pass before distortion,
+filtered two-stage saturation, low-mid contouring, a mild pick-attack blend,
+a restrained EDGE boost (when enabled), and post-clip low-pass / upper-mid
+presence shaping. Factory metal presets reduce unnecessary overdrive and
+rebalance bass/mid/presence for tighter riffs and palm mutes. Sakura Clean and
+Take Thick keep their separate processing paths.
+
+The portable DSP tests additionally compare third-harmonic content of the
+clean and metal circuits to catch accidental regression toward identical
+sounds. These checks cannot replace listening to a real guitar DI in a
+DAW, and changing an amp simulation's tone is subjective.
+
 ## UI polish and right-click menu
 
 The plugin intentionally suppresses the embedded browser's standard right-click
