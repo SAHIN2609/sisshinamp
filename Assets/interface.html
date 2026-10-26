@@ -11,8 +11,8 @@ html{scroll-padding-top:env(safe-area-inset-top,0px)}
 *{box-sizing:border-box}
 body{margin:0;background:var(--page);font:500 12px Inter,system-ui,sans-serif;padding:12px}
 .win{max-width:1060px;margin:0 auto;border-radius:12px;background:linear-gradient(180deg,#f1eee8,#fbfaf7 50%,#eeebe3);box-shadow:0 20px 50px -20px #0007;color:#2b3040;overflow:hidden}
-.tb{display:flex;align-items:center;gap:7px;padding:9px 12px;font-size:11px;font-weight:700;color:#555}
-.tb i{width:11px;height:11px;border-radius:50%}.tb span{margin:0 auto;transform:translateX(-24px)}
+.tb{display:flex;align-items:center;justify-content:center;gap:7px;padding:9px 12px;font-size:11px;font-weight:700;color:#555}
+.tb span{margin:0 auto}
 .tabs{display:flex;justify-content:center;gap:34px;padding:6px 0}
 .tabs button{background:none;border:0;color:#3c4254;opacity:.55;position:relative;padding:4px 4px 10px;cursor:pointer}
 .tabs button.on{opacity:1}.tabs button.on::after{content:"";position:absolute;left:50%;bottom:2px;width:4px;height:4px;margin-left:-2px;border-radius:50%;background:#2b3040}
@@ -125,7 +125,7 @@ body{margin:0;background:var(--page);font:500 12px Inter,system-ui,sans-serif;pa
 .cap{max-width:1060px;margin:12px auto 0;text-align:center;font-size:11px;color:var(--cap)}
 </style></head><body>
 <div class="win">
-<div class="tb"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i><span id="ttl">SishhinDSP</span></div>
+<div class="tb"><span id="ttl">SishhinDSP</span></div>
 <nav class="tabs" id="tabs"></nav>
 <div class="bar" id="bar"></div>
 <main id="view"></main>
