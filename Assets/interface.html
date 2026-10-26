@@ -123,6 +123,172 @@ body{margin:0;background:var(--page);font:500 12px Inter,system-ui,sans-serif;pa
 .foot button{background:none;border:0;font:inherit;color:inherit;cursor:pointer;padding:0}
 .foot button:disabled{opacity:.45;cursor:default}#midi{color:#2b3a66}#lg{color:var(--cu)}.foot em{margin-left:auto;font-style:normal;opacity:.7}
 .cap{max-width:1060px;margin:12px auto 0;text-align:center;font-size:11px;color:var(--cap)}
+
+/* Realistic amplifier head detailing; the original HTML structure, logos and controls remain. */
+.amp {
+  isolation:isolate;
+  transform:translateZ(0);
+  border:3px solid rgba(10,13,19,.37);
+  outline:1px solid rgba(255,255,255,.24);
+  box-shadow:inset 0 2px 3px #fff7,inset 0 -5px 6px #0008,0 22px 25px -12px #10152288,
+             0 5px 10px #15171c55!important;
+}
+.amp.a0 {
+  border-color:#ad9981;
+  background: repeating-linear-gradient(121deg,#ffffff09 0 1px,#25160609 2px 3px,transparent 4px 7px),
+    linear-gradient(161deg,#fffdf8 0%,#ece4d8 44%,#cfc0ac 100%);
+}
+.amp.a1 {
+  border-color:#121316;
+  background:repeating-linear-gradient(65deg,#ffffff06 0 1px,transparent 1px 5px),
+    linear-gradient(125deg,#414043 0,#131318 19%,#27252a 77%,#090b10 100%);
+  box-shadow:inset 0 2px 3px #7779,inset 0 -5px 6px #000b,0 26px 30px -13px #0009!important;
+}
+.amp.a2 {
+  border-color:#1e3024;
+  background: repeating-linear-gradient(46deg,#0000 0 3px,#c3bc8750 4px 5px,#0000 6px 9px),
+    repeating-linear-gradient(-46deg,#0000 0 3px,#0a201d70 4px 5px,#0000 6px 9px),
+    linear-gradient(160deg,#45624d,#172b20 62%,#102014);
+}
+.amp .handle {
+  left:36%;right:36%;top:-19px;height:20px;
+  border-top:8px solid #16191b;border-right:3px solid #999a90;
+  box-shadow:0 -2px 0 #7779,0 1px 3px #000b;
+}
+.amp .face {
+  isolation:isolate;
+  border:2px solid rgba(0,0,0,.6);
+  border-bottom:3px solid rgba(2,2,2,.45);
+  box-shadow:inset 0 0 0 3px #ffffff12,inset 0 4px 11px #0009,
+             0 2px 3px #000a;
+}
+.amp .face svg { display:none; }
+.amp .face::before, .amp .face::after {content:"";position:absolute;inset:0;pointer-events:none}
+.amp .face::before {z-index:0}
+.amp .face::after {z-index:1}
+/* SAKURA: cream woven grill, pearlescent skin and warm chrome chassis. */
+.a0 .face {
+  background: linear-gradient(162deg,#fffdf5,#e3ded1 42%,#c9c5bb 68%,#faf8f0 100%)!important;
+}
+.a0 .face::before {
+  background:
+    repeating-linear-gradient(45deg,#81756730 0 1px,transparent 1px 5px),
+    repeating-linear-gradient(-45deg,#877c6e29 0 1px,transparent 1px 5px),
+    radial-gradient(ellipse 70% 65% at 76% 36%,#f5c7b877,transparent 72%);
+  box-shadow:inset 0 0 55px #6f62573c;
+}
+.a0 .face::after {
+  background:linear-gradient(118deg,#fff8,transparent 17% 74%,#54412326),
+    radial-gradient(ellipse at 100% 100%,#93765842,transparent 65%);
+}
+.a0 .strip {
+  background: repeating-linear-gradient(0deg,#ffffff58 0 1px,#7a6b5812 1px 2px),
+    linear-gradient(92deg,#d9cab8 0,#fbf1df 25%,#eadbc8 78%,#a89a85);
+  border-top:2px solid #ae9e88;border-bottom:3px solid #978977;
+}
+.a0 .amp-plaque {color:#69544b;background:linear-gradient(155deg,#f3e5d0,#c4ad8e);border-color:#bea789;}
+/* TAKI: copper-lit tube grille, cast-iron hardware, brushed gunmetal. */
+.a1 .face {
+  background:radial-gradient(ellipse 43% 78% at 70% 62%,#e37b2e96 0%,#77341866 35%,transparent 83%),
+   linear-gradient(122deg,#10141a 5%,#26201c 48%,#05070d 100%)!important;
+}
+.a1 .face::before {
+  background:
+    repeating-linear-gradient(38deg,transparent 0 3px,#080b10b8 3px 5px,transparent 5px 9px),
+    repeating-linear-gradient(-38deg,transparent 0 3px,#05070a9c 3px 5px,transparent 5px 9px),
+    radial-gradient(ellipse 65% 50% at 73% 60%,#fb7c1f7c,transparent 74%);
+  box-shadow:inset 0 0 32px #020305eb;
+}
+.a1 .face::after {
+  background:linear-gradient(178deg,#ffffff16,#fff0 18%,#0008 90%),
+    repeating-linear-gradient(90deg,transparent 0 18%,#e5731d2b 19% 20%,transparent 21% 25%);
+  mix-blend-mode:screen;
+}
+.a1 .strip {
+  background:repeating-linear-gradient(0deg,#fff1 0 1px,#0000 1px 3px),
+   linear-gradient(90deg,#34343a 0,#62616b 26%,#393b44 73%,#1b202a 100%);
+  border-top:2px solid #141516;border-bottom:3px solid #080c10;
+}
+.a1 .amp-plaque {color:#e5c290;background:linear-gradient(158deg,#49423a,#1c1b1b);border-color:#907453;}
+/* TAKE: deep green lacquered tweed, bronze trim and warm internal bloom. */
+.a2 .face {
+ background:radial-gradient(ellipse at 65% 76%,#bf803f72,#1a3624 65%,#091a11 100%)!important;
+}
+.a2 .face::before {
+ background:repeating-linear-gradient(47deg,transparent 0 4px,#102817c9 4px 6px,transparent 6px 10px),
+ repeating-linear-gradient(-47deg,transparent 0 4px,#8ca06c72 4px 5px,transparent 6px 10px);
+ box-shadow:inset 0 0 50px #08120bbd;
+}
+.a2 .face::after {
+ background:radial-gradient(ellipse at 69% 64%,#e7b5574d,transparent 63%),
+   linear-gradient(165deg,#e9efdb21,transparent 26% 68%,#07140896);
+}
+.a2 .strip {
+ background:repeating-linear-gradient(0deg,#ffffff10 0 1px,transparent 1px 3px),
+   linear-gradient(100deg,#564a2d 0%,#998457 30%,#6b603f 77%,#342f23);
+ border-top:2px solid #a08d59;border-bottom:3px solid #3d3924;
+}
+.a2 .amp-plaque {color:#e1d1a7;background:linear-gradient(165deg,#4c4632,#191a14);border-color:#938058;}
+.amp .face .logo {z-index:5;filter:drop-shadow(0 2px 1px #0007);}
+.a0 .face .logo {filter:drop-shadow(0 2px 1px #fff8);}
+.amp .amp-plaque {
+ position:absolute;z-index:5;right:5.6%;top:21%;min-width:106px;
+ border:1px solid #888;border-radius:3px;padding:8px 9px;
+ font:bold 11px Georgia,serif;text-align:center;letter-spacing:.12em;
+ box-shadow:inset 0 1px 2px #fff5,inset 0 -2px 3px #0006,0 2px 5px #0008;
+ text-transform:uppercase;
+}
+.amp .amp-plaque small {display:block;font:700 8px Inter,system-ui,sans-serif;letter-spacing:.24em;margin-top:5px;}
+.amp .amp-screw {
+ display:block;z-index:5;position:absolute;width:8px;height:8px;border-radius:50%;
+ background:radial-gradient(circle at 37% 30%,#faf8e1 0 6%,#96918a 28%,#292a2d 68%,#000 95%);
+ box-shadow:0 0 0 1px #0009,0 1px 2px #0009;
+}
+.amp .amp-screw::after {
+ content:"";position:absolute;left:15%;top:44%;width:70%;height:1px;
+ background:#151515a6;transform:rotate(-38deg);
+}
+.amp .screw-tl {top:8px;left:8px}
+.amp .screw-tr {top:8px;right:8px}
+.amp .screw-bl {bottom:8px;left:8px}
+.amp .screw-br {bottom:8px;right:8px}
+.amp .strip {
+ position:relative;
+ box-shadow:inset 0 3px 8px #0004;
+ padding:10px 16px 15px;
+ border-radius:0 0 11px 11px;
+}
+.amp .strip::before,.amp .strip::after {
+ content:"";position:absolute;top:calc(50% - 4px);width:7px;height:7px;border-radius:50%;
+ background:radial-gradient(circle at 35% 27%,#f5f3e6,#96958e 40%,#222 85%);
+ box-shadow:0 0 0 1px #0008;
+ pointer-events:none
+}
+.amp .strip::before {left:5px}
+.amp .strip::after {right:5px}
+.amp .strip .knob {
+ box-shadow:inset 0 2px 2px #ffffff60,inset 0 -3px 4px #000a,0 1px 0 #ffffff59,0 4px 8px #0009!important;
+ border:2px solid rgba(20,19,21,.6);
+}
+.amp .strip .knob::before {
+ content:"";position:absolute;inset:3px;border-radius:50%;
+ border:1px dashed #ffffff58;box-shadow:inset 0 0 3px #fff2;
+ pointer-events:none;
+}
+.a0 .strip .knob {background:radial-gradient(circle at 31% 20%,#fff,#c9cbd0 45%,#737781 100%)}
+.a1 .strip .knob,.a2 .strip .knob {
+ background:radial-gradient(circle at 28% 20%,#85868e 0%,#24252b 39%,#0a0b0f 92%);
+}
+.amp .pw u {border:1px solid #ffcd8d;box-shadow:0 0 12px #ff652ab8,inset 0 0 7px #ffe1a6;}
+.amp .jack {box-shadow:inset 0 0 0 1px #07080b,0 2px 3px #0009;}
+.amp.mh .amp-plaque {transform:scale(.65);transform-origin:right top;right:2%;top:10%;}
+.amp.mh .amp-screw {width:6px;height:6px;}
+@media (max-width:600px) {
+ .amp .amp-plaque {min-width:66px;padding:5px;font-size:8px}
+ .amp .amp-plaque small {font-size:6px}
+ .amp.mh .amp-plaque {display:none}
+}
+
 </style></head><body oncontextmenu="return false;">
 <div class="win">
 <div class="tb"><span id="ttl">SishhinDSP</span></div>
@@ -174,7 +340,7 @@ $('#bar').innerHTML=`<div class="grp">${K('input')}</div><div class="grp">${K('g
 const ART=[`<svg viewBox="0 0 420 96" preserveAspectRatio="xMidYMid slice"><defs><g id="s"><circle cy="-4" r="4"/><circle cx="4" cy="-1" r="4"/><circle cx="2.5" cy="3.5" r="4"/><circle cx="-2.5" cy="3.5" r="4"/><circle cx="-4" cy="-1" r="4"/></g></defs><circle cx="318" cy="58" r="36" fill="#f3d3cf"/><path d="M420 14C370 24 330 8 250 44M340 26q-10 20-6 40M290 30q-6 14-24 22" fill="none" stroke="#5a4636" stroke-width="3" stroke-linecap="round"/><g fill="#f4a9bd"><g transform="translate(396 16) scale(1.2)"><use href="#s"/></g><g transform="translate(358 22) scale(1.5)"><use href="#s"/></g><g transform="translate(318 30) scale(1.3)"><use href="#s"/></g><g transform="translate(336 64) scale(1.6)"><use href="#s"/></g><g transform="translate(283 40) scale(1.2)"><use href="#s"/></g><g transform="translate(262 50)"><use href="#s"/></g></g><g fill="#f9c9d6"><ellipse cx="230" cy="70" rx="3" ry="2"/><ellipse cx="196" cy="26" rx="3" ry="2"/><ellipse cx="248" cy="84" rx="3" ry="2"/></g></svg>`,
 `<svg viewBox="0 0 420 96" preserveAspectRatio="xMidYMid slice"><defs><linearGradient id="w" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="80"><stop offset="0" stop-color="#fff" stop-opacity=".1"/><stop offset="1" stop-color="#fff" stop-opacity=".9"/></linearGradient></defs><circle cx="360" cy="26" r="13" fill="#e8eefc" opacity=".85"/><path d="M0 96V58l40-22 50 28 40-20 50 50zM290 96l50-44 40 24 40-30v50z" fill="#0b1226"/><path d="M165 0v70h92V0z" fill="#17203d"/><g stroke="url(#w)" stroke-width="3" fill="none" stroke-dasharray="22 12"><path d="M178 0v78" style="animation:fl 1.1s linear infinite"/><path d="M190 0v78" style="animation:fl .9s linear infinite"/><path d="M202 0v78" style="animation:fl 1.3s linear infinite"/><path d="M214 0v78" style="animation:fl 1s linear infinite"/><path d="M226 0v78" style="animation:fl 1.2s linear infinite"/><path d="M238 0v78" style="animation:fl .8s linear infinite"/></g><ellipse cx="212" cy="86" rx="70" ry="12" fill="#fff" opacity=".28"/></svg>`,`<svg viewBox="0 0 420 96" preserveAspectRatio="xMidYMid slice"><defs><linearGradient id="b"><stop offset="0" stop-color="#2c6a38"/><stop offset=".45" stop-color="#9ad493"/><stop offset="1" stop-color="#25552e"/></linearGradient></defs><g fill="url(#b)"><rect x="150" width="12" height="96"/><rect x="190" width="16" height="96"/><rect x="240" width="11" height="96"/><rect x="290" width="18" height="96"/><rect x="345" width="13" height="96"/><rect x="390" width="15" height="96"/></g><path stroke="#12301a" stroke-width="2.5" d="M150 22h12M150 58h12M190 40h16M190 76h16M240 18h11M240 52h11M290 30h18M290 66h18M345 24h13M345 62h13M390 44h15M390 80h15"/><path fill="#4f9a55" d="M206 30q22-14 40-6-18 14-40 6zM308 50q24-12 42-2-22 14-42 2zM162 66q-20-10-36-2 18 12 36 2z"/></svg>`];
 function ampV(){const lg=logoH();
-return `<div class="amp a${S.amp}"><div class="handle"></div><div class="face">${ART[S.amp]}<div class="logo">${lg}</div></div>
+return `<div class="amp a${S.amp}"><div class="handle"></div><div class="face">${ART[S.amp]}<i class="amp-hardware" aria-hidden="true"></i><i class="amp-screw screw-tl" aria-hidden="true"></i><i class="amp-screw screw-tr" aria-hidden="true"></i><i class="amp-screw screw-bl" aria-hidden="true"></i><i class="amp-screw screw-br" aria-hidden="true"></i><b class="amp-plaque">${AMPS[S.amp][0]} <small>${AMPS[S.amp][1]}</small></b><div class="logo">${lg}</div></div>
 <div class="strip"><span class="jack"></span><div class="vc" data-t="voice"><u></u><b>VOICE</b></div>${['gain','bass','mid','treb','pres','master','ao'].map(k=>K(k)).join('')}<div class="pw"><u></u><b>POWER</b></div></div></div>
 <div class="sel3">${AMPS.map((a,i)=>`<button data-amp="${i}" class="${i==S.amp?'on':''}"><i class="mini m${i}"></i>${a[0]}<small>${a[1]}</small></button>`).join('')}</div>`}
 const MICS=['Dynamic 57','Ribbon 121','Condenser 87','Dynamic 421'];
@@ -182,7 +348,7 @@ const logoH=()=>(LOGO?`<img src="${LOGO}" alt="Logo">`:`<i class="lm" role="img"
 const micCss=m=>{const p=S.p[m+'pos'],d=S.p[m+'dist'];return`left:${14+p*44}%;top:${50-d*26}%;transform:rotate(${m=='a'?26:-14}deg) scale(${1+d*.5});opacity:${S.on['m'+m]?1:.3}`};
 const micC=m=>`<div class="cc"><div class="mn"><button data-mp="${m},-1" aria-label="Previous mic">←</button><button data-mp="${m},1" aria-label="Next mic">→</button></div><div class="msel"><select data-ms="${m}" aria-label="Mic ${m.toUpperCase()}">${MICS.map((x,j)=>`<option value="${j}"${S['mic'+m]==j?' selected':''}>${x}</option>`).join('')}</select><button class="pwr" data-t="m${m}" aria-label="Mic ${m.toUpperCase()} power">⏻</button></div><div class="mk">${K(m+'pos')}${K(m+'dist')}${K(m+'lv')}${K(m+'pan')}</div><div class="rs"><b>ROOM SEND <i class="tg" data-t="r${m}"></i></b>${K(m+'rm')}</div></div>`;
 const mic=m=>`<span class="mic" data-mic="${m}"></span>`;
-const cabV=()=>`<div class="cg">${micC('a')}<div class="cm"><div class="amp a${S.amp} mh"><div class="handle"></div><div class="face">${ART[S.amp]}<div class="logo">${logoH()}</div></div><div class="st">${'<i></i>'.repeat(7)}</div></div><div class="cabx cx${S.cab} a${S.amp}">${Array.from({length:[1,4,2][S.cab]},(_,i)=>`<i class="sp">${(i==0?mic('a'):'')+(i==[0,3,1][S.cab]?mic('b'):'')}</i>`).join('')}</div><div class="cts">${CABS.map((c,i)=>`<button class="ctb ${i==S.cab?'on':''}" data-cab="${i}">${c[0]}<small>${c[1]}</small></button>`).join('')}</div></div>${micC('b')}</div>${irP()}`;
+const cabV=()=>`<div class="cg">${micC('a')}<div class="cm"><div class="amp a${S.amp} mh"><div class="handle"></div><div class="face">${ART[S.amp]}<i class="amp-hardware" aria-hidden="true"></i><i class="amp-screw screw-tl" aria-hidden="true"></i><i class="amp-screw screw-tr" aria-hidden="true"></i><i class="amp-screw screw-bl" aria-hidden="true"></i><i class="amp-screw screw-br" aria-hidden="true"></i><b class="amp-plaque">${AMPS[S.amp][0]} <small>${AMPS[S.amp][1]}</small></b><div class="logo">${logoH()}</div></div><div class="st">${'<i></i>'.repeat(7)}</div></div><div class="cabx cx${S.cab} a${S.amp}">${Array.from({length:[1,4,2][S.cab]},(_,i)=>`<i class="sp">${(i==0?mic('a'):'')+(i==[0,3,1][S.cab]?mic('b'):'')}</i>`).join('')}</div><div class="cts">${CABS.map((c,i)=>`<button class="ctb ${i==S.cab?'on':''}" data-cab="${i}">${c[0]}<small>${c[1]}</small></button>`).join('')}</div></div>${micC('b')}</div>${irP()}`;
 let IR=null,AC;
 const BANK_POS=['Center','Cap Edge','Cone','Mid','Edge','Room'];
 const BANK_NAMES=Array.from({length:72},(_,i)=>{
