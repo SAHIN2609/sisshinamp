@@ -93,7 +93,7 @@ void SishhinDSPAudioProcessor::prepareToPlay(double sr,int maxBlock) {
     engine.prepare(sr,maxBlock);
     floatScratch.setSize(2,maxBlock);
     tunerStride=std::max(1,(int)std::lround(sr/12000.0));
-    tunerCaptureRate=(float)(sr/tunerStride);
+    tunerCaptureRate.store((float)(sr/tunerStride),std::memory_order_release);
     tunerCounter=0;
     tunerWrite.store(0);
     for(auto& sample:tunerRing)sample.store(0.f);
@@ -182,7 +182,8 @@ void SishhinDSPAudioProcessor::processBlock(juce::AudioBuffer<float>& b,juce::Mi
         if(++tunerCounter>=tunerStride) {
             tunerCounter=0;
             const unsigned write=tunerWrite.load(std::memory_order_relaxed);
-            tunerRing[write & (tunerRingSize-1)].store(x0,std::memory_order_relaxed);
+            const float tunerDI=std::abs(x0)>=std::abs(x1)?x0:x1;
+            tunerRing[write & (tunerRingSize-1)].store(tunerDI,std::memory_order_relaxed);
             tunerWrite.store(write+1,std::memory_order_release);
         }
         const auto y0=engine.processSample(0,x0,p);
@@ -525,13 +526,14 @@ void SishhinDSPAudioProcessor::handleIncomingMidiEvent(int event) {
 float SishhinDSPAudioProcessor::detectTunerPitchHz() const {
     constexpr unsigned count=tunerRingSize;
     const unsigned end=tunerWrite.load(std::memory_order_acquire);
-    if(end<count || tunerCaptureRate<4000.f)return 0.f;
+    const float captureRate=tunerCaptureRate.load(std::memory_order_acquire);
+    if(end<count || captureRate<4000.f)return 0.f;
     std::array<float,count> samples {};
     for(unsigned i=0;i<count;++i)
         samples[i]=tunerRing[(end-count+i)&(count-1)].load(std::memory_order_relaxed);
     // The portable estimator is regression-tested with actual guitar notes
     // and runs only on the message thread while the tuner is open.
-    return sdsp::detectGuitarPitchHz(samples.data(),(int)count,tunerCaptureRate);
+    return sdsp::detectGuitarPitchHz(samples.data(),(int)count,captureRate);
 }
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter(){return new SishhinDSPAudioProcessor();}
