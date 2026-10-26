@@ -289,6 +289,160 @@ body{margin:0;background:var(--page);font:500 12px Inter,system-ui,sans-serif;pa
  .amp.mh .amp-plaque {display:none}
 }
 
+
+/* Amp selector thumbnails are miniature versions of the three actual amp heads. */
+.sel3 {gap:15px;margin-top:25px;}
+.sel3 button {
+  min-width:138px;
+  padding:13px 12px 10px;
+  gap:6px;
+  border-radius:14px;
+  background:linear-gradient(155deg,#ffffffec,#eeece6e8);
+  border:2px solid #ded9d0;
+  box-shadow:0 5px 12px #20263814,inset 0 1px 0 #fff;
+  font-size:11px;
+  transition:border-color .15s,transform .15s,box-shadow .15s;
+}
+.sel3 button:hover {
+  transform:translateY(-2px);
+  border-color:#c99987;
+  box-shadow:0 9px 17px #20263822;
+}
+.sel3 button.on {
+  border-color:var(--cu);
+  background:linear-gradient(#fff,#f9f5f1);
+  box-shadow:0 0 0 1px #c8312b28,0 7px 16px #20263826;
+}
+.sel3 button:focus-visible {outline:2px solid #1d4b9c;outline-offset:2px;}
+.sel3 button small {font-size:8px;letter-spacing:.22em;}
+.sel3 .mini {
+  position:relative;
+  display:block;
+  width:114px;
+  height:63px;
+  border-radius:7px;
+  border:3px solid #22252b;
+  overflow:visible;
+  box-shadow:inset 0 0 0 1px #fffa,0 7px 9px #181a243b;
+  font-style:normal;
+  background:linear-gradient(140deg,#fff,#ddd);
+  flex:none;
+}
+.sel3 .mini::before,.sel3 .mini::after {
+  content:"";
+  position:absolute;
+  top:6px;
+  width:3px;
+  height:47px;
+  border-radius:2px;
+  background:linear-gradient(90deg,#0005,#ddd7,#0007);
+  z-index:4;
+}
+.sel3 .mini::before {left:0}
+.sel3 .mini::after {right:0}
+.sel3 .mini-handle {
+  position:absolute;top:-8px;left:32%;right:32%;height:7px;
+  border:3px solid #24262b;border-bottom:0;border-radius:8px 8px 0 0;
+  background:linear-gradient(#989a9d,#19191a);
+}
+.sel3 .mini-grill {
+  position:absolute;
+  inset:3px 4px 18px;
+  overflow:hidden;
+  border:1px solid #0c0c10c9;
+  border-radius:3px;
+  box-shadow:inset 0 0 9px #000c;
+}
+.sel3 .mini-grill::before,.sel3 .mini-grill::after {
+  content:"";position:absolute;inset:0;pointer-events:none;
+}
+.sel3 .mini-grill::before {
+  background:repeating-linear-gradient(46deg,#0008 0 1px,transparent 1px 5px),
+             repeating-linear-gradient(-46deg,#0007 0 1px,transparent 1px 5px);
+}
+.sel3 .mini-grill::after {
+  background:linear-gradient(120deg,#ffffff2c,transparent 33% 72%,#0008);
+}
+.sel3 .mini-logo {
+  position:absolute;z-index:2;left:11px;top:7px;
+  font:700 15px "Yuji Boku","Yu Mincho",serif;
+  letter-spacing:.08em;
+  text-shadow:0 1px 1px #0009;
+}
+.sel3 .mini-light {
+  position:absolute;right:17px;top:5px;width:18px;height:21px;
+  border-radius:50%;filter:blur(2px);opacity:.8;
+}
+.sel3 .mini-name {
+  position:absolute;right:7px;bottom:3px;
+  z-index:2;
+  padding:1px 2px;
+  border-radius:1px;
+  font:700 5px Inter,system-ui,sans-serif;
+  letter-spacing:.13em;
+  text-transform:uppercase;
+  border:1px solid #ffffff35;
+}
+.sel3 .mini-plate {
+  position:absolute;left:4px;right:4px;bottom:3px;height:13px;
+  border:1px solid #0007;
+  border-radius:2px;
+  display:flex;align-items:center;gap:5px;padding:0 5px;
+  box-shadow:inset 0 1px 0 #fffa,0 -1px 1px #0009;
+}
+.sel3 .mini-knobs {
+  flex:1;display:flex;gap:7px;align-items:center;justify-content:center;
+}
+.sel3 .mini-knobs i {
+  width:6px;height:7px;border-radius:50%;
+  background:radial-gradient(circle at 35% 29%,#eee,#45474c 45%,#0a0a0d 86%);
+  box-shadow:0 1px 2px #0009;
+}
+.sel3 .mini-jack {
+  width:5px;height:5px;border-radius:50%;
+  background:radial-gradient(circle,#131416 32%,#dadde3 35% 52%,#55565c 60%);
+}
+.sel3 .mini-power {
+  width:4px;height:4px;background:#f56121;border-radius:50%;
+  box-shadow:0 0 5px #eb471c;
+}
+.sel3 .m0 {
+  border-color:#b9a88f;
+  background:linear-gradient(135deg,#fef9ed,#c8b8a2);
+}
+.sel3 .m0 .mini-grill {
+  background:linear-gradient(125deg,#fffaf0,#cfc0ae);
+  border-color:#a4988b;
+}
+.sel3 .m0 .mini-logo,.sel3 .m0 .mini-name {color:#584636;text-shadow:0 1px 0 #fff9;}
+.sel3 .m0 .mini-light {background:#f9bc9090;}
+.sel3 .m0 .mini-plate {background:linear-gradient(100deg,#c3b29e,#f7e9d1,#b3a18c);}
+.sel3 .m1 {
+  border-color:#24232a;
+  background:repeating-linear-gradient(42deg,#17171c 0 3px,#37353a 4px 5px);
+}
+.sel3 .m1 .mini-grill {
+  background:radial-gradient(ellipse at 77% 66%,#a84516,#120f15 71%);
+}
+.sel3 .m1 .mini-logo,.sel3 .m1 .mini-name {color:#f2d3a5;}
+.sel3 .m1 .mini-light {background:#fe692c;box-shadow:0 0 12px 5px #f16b32b0;}
+.sel3 .m1 .mini-plate {background:linear-gradient(99deg,#302e34,#78706a,#292930);}
+.sel3 .m2 {
+  border-color:#2d4834;
+  background:repeating-linear-gradient(44deg,#17402b 0 3px,#6a8361 4px 5px);
+}
+.sel3 .m2 .mini-grill {
+  background:radial-gradient(ellipse at 65% 72%,#7c6a38,#102117 75%);
+}
+.sel3 .m2 .mini-logo,.sel3 .m2 .mini-name {color:#d7c9a0;}
+.sel3 .m2 .mini-light {background:#a48942;box-shadow:0 0 9px 5px #96712e8a;}
+.sel3 .m2 .mini-plate {background:linear-gradient(100deg,#53472e,#bba373,#4b452f);}
+@media(max-width:520px) {
+  .sel3 {gap:8px;}
+  .sel3 button {min-width:100px;padding:9px 6px 8px;}
+  .sel3 .mini {transform:scale(.82);margin:-4px -8px;}
+}
+
 </style></head><body oncontextmenu="return false;">
 <div class="win">
 <div class="tb"><span id="ttl">SishhinDSP</span></div>
@@ -342,7 +496,7 @@ const ART=[`<svg viewBox="0 0 420 96" preserveAspectRatio="xMidYMid slice"><defs
 function ampV(){const lg=logoH();
 return `<div class="amp a${S.amp}"><div class="handle"></div><div class="face">${ART[S.amp]}<i class="amp-hardware" aria-hidden="true"></i><i class="amp-screw screw-tl" aria-hidden="true"></i><i class="amp-screw screw-tr" aria-hidden="true"></i><i class="amp-screw screw-bl" aria-hidden="true"></i><i class="amp-screw screw-br" aria-hidden="true"></i><b class="amp-plaque">${AMPS[S.amp][0]} <small>${AMPS[S.amp][1]}</small></b><div class="logo">${lg}</div></div>
 <div class="strip"><span class="jack"></span><div class="vc" data-t="voice"><u></u><b>VOICE</b></div>${['gain','bass','mid','treb','pres','master','ao'].map(k=>K(k)).join('')}<div class="pw"><u></u><b>POWER</b></div></div></div>
-<div class="sel3">${AMPS.map((a,i)=>`<button data-amp="${i}" class="${i==S.amp?'on':''}"><i class="mini m${i}"></i>${a[0]}<small>${a[1]}</small></button>`).join('')}</div>`}
+<div class="sel3">${AMPS.map((a,i)=>`<button data-amp="${i}" class="${i==S.amp?'on':''}"><i class="mini m${i}" aria-hidden="true"><i class="mini-handle"></i><i class="mini-grill"><i class="mini-logo">失神</i><i class="mini-light"></i><i class="mini-name">${a[0]}</i></i><i class="mini-plate"><i class="mini-jack"></i><i class="mini-knobs"><i></i><i></i><i></i><i></i><i></i><i></i></i><i class="mini-power"></i></i></i>${a[0]}<small>${a[1]}</small></button>`).join('')}</div>`}
 const MICS=['Dynamic 57','Ribbon 121','Condenser 87','Dynamic 421'];
 const logoH=()=>(LOGO?`<img src="${LOGO}" alt="Logo">`:`<i class="lm" role="img" aria-label="失神" style="-webkit-mask-image:url(${DEFLOGO});mask-image:url(${DEFLOGO})"></i>`)+'<small>SISSHIN · DSP</small>';
 const micCss=m=>{const p=S.p[m+'pos'],d=S.p[m+'dist'];return`left:${14+p*44}%;top:${50-d*26}%;transform:rotate(${m=='a'?26:-14}deg) scale(${1+d*.5});opacity:${S.on['m'+m]?1:.3}`};
