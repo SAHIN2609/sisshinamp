@@ -34,6 +34,29 @@ Stats run(int amp, float gain, bool impulse=false, float shift=0, bool micB=true
     }
     return {std::sqrt(sum/(48000-4096)),pk,diff/(48000-4096),finite};
 }
+// Check that a moderately gained clean tone has fewer guitar-band harmonics
+// than the new Taki high-gain voice, rather than merely measuring output volume.
+double thirdHarmonicRatio(int amp, float gain, bool edgePedal) {
+    sdsp::AmpEngine engine;
+    engine.prepare(48000,512);
+    sdsp::Parameters p;
+    p.amp=amp;p.cab=1;p.gain=gain;p.gateOn=false;p.eqOn=false;
+    p.pedalOn[1]=edgePedal;
+    p.pedals[1][0]=3.f;p.pedals[1][1]=6.2f;p.pedals[1][2]=6.f;
+    engine.configure(p);
+    double oneS=0,oneC=0,threeS=0,threeC=0;
+    const double omega=2.0*sdsp::pi*180.0/48000.0;
+    for(int n=0;n<48000;++n) {
+        const double phase=omega*n;
+        const auto y=engine.processSample(0,.12f*std::sin((float)phase),p);
+        if(n>=9600) {
+            oneS+=y*std::sin(phase);oneC+=y*std::cos(phase);
+            threeS+=y*std::sin(3.0*phase);threeC+=y*std::cos(3.0*phase);
+        }
+    }
+    return std::hypot(threeS,threeC)/
+           std::max(1.e-9,std::hypot(oneS,oneC));
+}
 int main() {
     const auto c=run(0,3),m=run(1,9),t=run(2,7);
     const auto ir=run(1,9,true),shift=run(0,3,false,7),singleMic=run(0,3,false,0,false);
@@ -49,6 +72,12 @@ int main() {
           &&distinct(c.rms,singleMic.rms)&&std::abs(ribbon.avgDiff-c.avgDiff)>1.e-6
           &&distinct(c.rms,cabinet.rms)&&distinct(c.rms,eq.rms)&&distinct(c.rms,pedal.rms)
           &&distinct(c.rms,bypass.rms);
+    const auto cleanHarmonics=thirdHarmonicRatio(0,3.f,false);
+    const auto metalHarmonics=thirdHarmonicRatio(1,8.f,true);
+    ok=ok && std::isfinite(cleanHarmonics) && std::isfinite(metalHarmonics)
+          && metalHarmonics>cleanHarmonics*1.15;
+    std::printf("Clean 3rd harmonic/fundamental %.4f; Taki Metal %.4f\n",
+                cleanHarmonics,metalHarmonics);
     std::printf("Clean RMS %.6f; Metal %.6f; Thick %.6f; IR %.6f; shifted %.6f; ribbon %.6f; bypass %.6f; cab %.6f; eq %.6f; drive %.6f\n",
                 c.rms,m.rms,t.rms,ir.rms,shift.rms,ribbon.rms,bypass.rms,cabinet.rms,eq.rms,pedal.rms);
     if(!ok)std::fprintf(stderr,"SishhinDSP DSP regression test failed.\n");
