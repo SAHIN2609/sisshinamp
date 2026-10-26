@@ -1,5 +1,33 @@
 # SishhinDSP — HTML WebView VST3 and Standalone (JUCE 8)
 
+## Updated UI and 100+ MiB installed plugin
+
+The red/yellow/green fake window buttons were removed from the original-looking
+HTML interface. The build now ships **72 distinct synthetic 96 kHz / 32-bit /
+5-second cabinet and room impulse-response WAV files**, arranged by three
+cabinets, four microphones, and six positions each. They are actual WAV audio,
+not empty padding or copies of unrelated files.
+
+The complete library lives inside the installed plugin bundle at
+`SishhinDSP.vst3/Contents/Resources/CabinetIRLibrary`. Its uncompressed size
+is approximately **132 MiB** and the build **fails** if the complete plugin
+bundle is not larger than 100 MiB. The GitHub Actions ZIP may be smaller
+because it compresses the files. This is the *installed VST3 bundle size*,
+not the C++ plugin binary's size.
+
+The CAB panel has a built-in bank selector. Each selection loads the relevant
+768-tap early impulse into the real-time audio engine. The full five-second
+hybrid cabinet/room IR WAV files can also be loaded by third-party long-IR
+convolution plugins; the SishhinDSP real-time convolution stage currently uses
+**only the first 768 taps**, so its internal engine does not reproduce the full
+five-second room tail. The IRs are algorithmically synthesized, not recordings
+of physical amplifiers or microphones, and adding them does not itself improve
+amp modeling quality.
+
+The waveform library is produced reproducibly by
+`tools/generate_ir_bank.py` during GitHub Actions builds. The library is
+bundled with the VST3, not checked into Git as 132 MiB of binary files.
+
 SishhinDSP is a **native audio plugin** whose interface displays the original
 SishhinDSP HTML inside JUCE's embedded browser. Guitar audio is processed by the
 separate C++ `AmpEngine`, **not** by JavaScript or the browser. The original
