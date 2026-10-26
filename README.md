@@ -1,5 +1,24 @@
 # SishhinDSP — HTML WebView VST3 and Standalone (JUCE 8)
 
+## UI polish and right-click menu
+
+The plugin intentionally suppresses the embedded browser's standard right-click
+menu (including **Save As**, **Print**, and **More tools**). The restriction is
+installed both in the HTML's capture-phase contextmenu handler and JUCE's
+early WebView user script, so it applies to Windows WebView2 and macOS WKWebView.
+Normal knob dragging, plugin presets, and file-import controls remain enabled.
+
+All three amplifier views (Sakura Clean, Taki Metal, Take Thick) now use richer
+HTML/CSS visual materials: mesh and woven speaker grilles, amp-casing textures,
+glowing tubes, cast metal faceplates, screws, model plaques, chrome control caps,
+and case hardware. These are **rendered materials**, not photographic captures,
+and the original logo and interaction layout remain in place.
+
+The Windows/macOS Actions workflow also runs `tools/validate_web_ui.py` to
+check inline JavaScript syntax, contextmenu suppression, native bridge, model
+markup and assets before compilation. A passing browser UI test does not
+establish DAW runtime correctness; check the platform VST3 builds separately.
+
 ## Updated UI and 100+ MiB installed plugin
 
 The red/yellow/green fake window buttons were removed from the original-looking
