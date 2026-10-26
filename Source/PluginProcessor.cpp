@@ -1,5 +1,6 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
+#include "TunerDSP.h"
 #include <BinaryData.h>
 #include <cmath>
 #include <cstring>
@@ -524,71 +525,13 @@ void SishhinDSPAudioProcessor::handleIncomingMidiEvent(int event) {
 float SishhinDSPAudioProcessor::detectTunerPitchHz() const {
     constexpr unsigned count=tunerRingSize;
     const unsigned end=tunerWrite.load(std::memory_order_acquire);
-    if(end<count || tunerCaptureRate<1000.f)return 0.f;
+    if(end<count || tunerCaptureRate<4000.f)return 0.f;
     std::array<float,count> samples {};
-    double mean=0.;
-    for(unsigned i=0;i<count;++i) {
-        const float sample=tunerRing[(end-count+i)&(count-1)].load(std::memory_order_relaxed);
-        samples[i]=sample;
-        mean+=sample;
-    }
-    mean/=count;
-    double energy=0.;
-    for(auto& x:samples) {
-        x-=(float)mean;
-        energy+=(double)x*x;
-    }
-    if(energy/count < .000004) return 0.f; // no guitar input
-    // YIN-style cumulative mean normalized difference: robust for a clean
-    // guitar DI and inexpensive because it runs only on the UI timer.
-    const int minLag=std::max(2,(int)(tunerCaptureRate/1100.f));
-    const int maxLag=std::min(350,(int)(tunerCaptureRate/45.f));
-    const int window=(int)count-maxLag-1;
-    if(window<1024 || minLag>=maxLag)return 0.f;
-    std::array<double,351> score{};
-    for(int tau=1;tau<=maxLag;++tau) {
-        double distance=0.;
-        for(int j=0;j<window;++j) {
-            const double d=(double)samples[(size_t)j]-(double)samples[(size_t)(j+tau)];
-            distance+=d*d;
-        }
-        score[(size_t)tau]=distance;
-    }
-    double cumulative=0.;
-    int found=0;
-    double best=.31;
-    for(int tau=1;tau<=maxLag;++tau) {
-        cumulative+=score[(size_t)tau];
-        if(tau<minLag)continue;
-        const double normalized=score[(size_t)tau]*tau/(cumulative+1.e-14);
-        if(normalized<.16) {
-            found=tau;
-            break;
-        }
-        if(normalized<best) {
-            best=normalized;
-            found=tau;
-        }
-    }
-    if(found<=0 || (score[(size_t)found]*found/(1.e-14+
-            [&]() {
-                double accum=0.;
-                for(int j=1;j<=found;++j)accum+=score[(size_t)j];
-                return accum;
-            }()))>.31)return 0.f;
-    // Refine the period to a fraction of a sample using a local parabola.
-    double period=(double)found;
-    if(found>1 && found<maxLag) {
-        const double left=score[(size_t)(found-1)];
-        const double center=score[(size_t)found];
-        const double right=score[(size_t)(found+1)];
-        const double denom=left-2*center+right;
-        if(std::abs(denom)>1.e-12)
-            period+=std::max(-.5,std::min(.5,(left-right)/denom*.5));
-    }
-    const float frequency=(float)(tunerCaptureRate/period);
-    return (std::isfinite(frequency) && frequency>=45.f && frequency<=1100.f)
-        ?frequency:0.f;
+    for(unsigned i=0;i<count;++i)
+        samples[i]=tunerRing[(end-count+i)&(count-1)].load(std::memory_order_relaxed);
+    // The portable estimator is regression-tested with actual guitar notes
+    // and runs only on the message thread while the tuner is open.
+    return sdsp::detectGuitarPitchHz(samples.data(),(int)count,tunerCaptureRate);
 }
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter(){return new SishhinDSPAudioProcessor();}
