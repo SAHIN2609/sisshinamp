@@ -75,7 +75,7 @@ private:
     std::array<std::atomic<float>,tunerRingSize> tunerRing;
     std::atomic<unsigned> tunerWrite {0};
     int tunerCounter=0, tunerStride=4;
-    float tunerCaptureRate=12000.f;
+    std::atomic<float> tunerCaptureRate {12000.f};
     // MIDI is decoded on the real-time thread and applied on JUCE message
     // thread via AsyncUpdater; no APVTS edit or allocation inside processBlock.
     std::atomic<int> pendingMidiEvent {-1};
