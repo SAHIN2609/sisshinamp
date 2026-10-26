@@ -2,6 +2,8 @@
 #include <JuceHeader.h>
 #include "AmpEngine.h"
 #include <atomic>
+#include <array>
+#include <vector>
 
 class SishhinDSPAudioProcessor final : public juce::AudioProcessor, private juce::AsyncUpdater {
 public:
@@ -44,6 +46,20 @@ public:
     std::atomic<int> requestedProgram {-1};
     std::atomic<float> lastInputPeak {0.0f}, lastOutputPeak {0.0f};
 
+    struct MidiMapping {
+        juce::String target;
+        int type=0;     // 0=CC Absolute, 1=Program Change, 2=Note
+        int channel=0;  // 0=omni; 1..16 specific channel
+        int number=10;  // CC, program-change or note number
+        int preset=0;   // Program selected by Program Change mapping
+    };
+    void startMidiLearn(const juce::String& target);
+    void cancelMidiLearn();
+    juce::String currentMidiLearnTarget() const;
+    juce::var getMidiMappings() const;
+    void setMidiMappings(const juce::var& mappings);
+    float detectTunerPitchHz() const;
+
 private:
     sdsp::AmpEngine engine;
     juce::AudioBuffer<float> floatScratch;
@@ -54,6 +70,19 @@ private:
     juce::String irName;
     std::atomic<int> currentProgram {0};
     std::atomic<int> currentFactoryIR {-1};
+    // Lock-free tuner capture: the audio thread only publishes decimated DI.
+    static constexpr unsigned tunerRingSize=2048;
+    std::array<std::atomic<float>,tunerRingSize> tunerRing;
+    std::atomic<unsigned> tunerWrite {0};
+    int tunerCounter=0, tunerStride=4;
+    float tunerCaptureRate=12000.f;
+    // MIDI is decoded on the real-time thread and applied on JUCE message
+    // thread via AsyncUpdater; no APVTS edit or allocation inside processBlock.
+    std::atomic<int> pendingMidiEvent {-1};
+    std::vector<MidiMapping> midiMappings;
+    juce::String midiLearnTarget;
+    void handleIncomingMidiEvent(int encoded);
+    static juce::var midiMappingToVar(const MidiMapping&);
     sdsp::Parameters collectParameters() const noexcept;
     float get(const char* id) const noexcept;
     void pushIRToEngine() noexcept;
