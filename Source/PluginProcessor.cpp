@@ -421,4 +421,174 @@ juce::StringArray SishhinDSPAudioProcessor::userPresetNames() const {
     for(auto f:presetFolder().findChildFiles(juce::File::findFiles,false,"*.sdsp")) result.add(f.getFileNameWithoutExtension());
     result.sort(true);return result;
 }
+
+juce::var SishhinDSPAudioProcessor::midiMappingToVar(const MidiMapping& m) {
+    juce::var value(new juce::DynamicObject());
+    auto* object=value.getDynamicObject();
+    object->setProperty("target",m.target);
+    object->setProperty("type",m.type);
+    object->setProperty("channel",m.channel);
+    object->setProperty("number",m.number);
+    object->setProperty("preset",m.preset);
+    return value;
+}
+juce::var SishhinDSPAudioProcessor::getMidiMappings() const {
+    juce::Array<juce::var> rows;
+    const juce::ScopedLock guard(midiMapLock);
+    for(const auto& row:midiMappings) rows.add(midiMappingToVar(row));
+    return juce::var(rows);
+}
+void SishhinDSPAudioProcessor::setMidiMappings(const juce::var& data) {
+    std::vector<MidiMapping> next;
+    if(const auto* rows=data.getArray()) {
+        for(const auto& row:*rows) {
+            if(next.size()>=64)break;
+            const auto* item=row.getDynamicObject();
+            if(item==nullptr)continue;
+            MidiMapping m;
+            m.target=item->getProperty("target").toString();
+            if(m.target!="preset" && apvts.getParameter(m.target)==nullptr) continue;
+            m.type=juce::jlimit(0,2,(int)item->getProperty("type"));
+            m.channel=juce::jlimit(0,16,(int)item->getProperty("channel"));
+            m.number=juce::jlimit(0,127,(int)item->getProperty("number"));
+            m.preset=juce::jlimit(0,71,(int)item->getProperty("preset"));
+            next.push_back(std::move(m));
+        }
+    }
+    const juce::ScopedLock guard(midiMapLock);
+    midiMappings=std::move(next);
+}
+void SishhinDSPAudioProcessor::startMidiLearn(const juce::String& target) {
+    if(target=="preset" || apvts.getParameter(target)!=nullptr)
+        midiLearnTarget=target;
+}
+void SishhinDSPAudioProcessor::cancelMidiLearn() {
+    midiLearnTarget.clear();
+}
+juce::String SishhinDSPAudioProcessor::currentMidiLearnTarget() const {
+    return midiLearnTarget;
+}
+void SishhinDSPAudioProcessor::handleIncomingMidiEvent(int event) {
+    const int kind=(event>>24)&0xff;   // 1=CC, 2=PC, 3=note on, 4=note off
+    const int channel=(event>>16)&0xff;
+    const int number=(event>>8)&0xff;
+    const int value=event&0xff;
+    if(midiLearnTarget.isNotEmpty() && kind!=4) {
+        MidiMapping learn;
+        learn.target=midiLearnTarget;
+        learn.type=kind==2?1:kind==3?2:0;
+        learn.channel=channel;
+        learn.number=number;
+        learn.preset=getCurrentProgram();
+        {
+            const juce::ScopedLock guard(midiMapLock);
+            // One learned input per destination, preventing duplicate responses.
+            midiMappings.erase(
+                std::remove_if(midiMappings.begin(),midiMappings.end(),
+                    [&](const MidiMapping& existing){return existing.target==learn.target;}),
+                midiMappings.end());
+            if(midiMappings.size()<64) midiMappings.push_back(learn);
+        }
+        midiLearnTarget.clear();
+        return;
+    }
+    std::vector<MidiMapping> mappings;
+    {
+        const juce::ScopedLock guard(midiMapLock);
+        mappings=midiMappings;
+    }
+    bool mapped=false;
+    for(const auto& m:mappings) {
+        if(m.channel!=0 && m.channel!=channel)continue;
+        const bool match=(m.type==0 && kind==1 && number==m.number)
+                      || (m.type==1 && kind==2 && number==m.number)
+                      || (m.type==2 && (kind==3 || kind==4) && number==m.number);
+        if(!match)continue;
+        mapped=true;
+        if(m.target=="preset") {
+            if(m.type==1 || kind==3)selectFactoryPreset(m.preset);
+            else if(kind==1)selectFactoryPreset(juce::jlimit(0,71,(int)std::lround(value*71.f/127.f)));
+        } else if(auto* parameter=apvts.getParameter(m.target)) {
+            // Normalized CC values are host-automation safe; Note mappings
+            // act like momentary switches (on=127, off=0).
+            const float normalized=kind==1?value/127.f
+                                               :kind==4?0.f:1.f;
+            parameter->beginChangeGesture();
+            parameter->setValueNotifyingHost(normalized);
+            parameter->endChangeGesture();
+        }
+    }
+    // Unmapped PC 0..71 still selects factory presets, as before.
+    if(kind==2 && !mapped && number<72) selectFactoryPreset(number);
+}
+float SishhinDSPAudioProcessor::detectTunerPitchHz() const {
+    constexpr unsigned count=tunerRingSize;
+    const unsigned end=tunerWrite.load(std::memory_order_acquire);
+    if(end<count || tunerCaptureRate<1000.f)return 0.f;
+    std::array<float,count> samples {};
+    double mean=0.;
+    for(unsigned i=0;i<count;++i) {
+        const float sample=tunerRing[(end-count+i)&(count-1)].load(std::memory_order_relaxed);
+        samples[i]=sample;
+        mean+=sample;
+    }
+    mean/=count;
+    double energy=0.;
+    for(auto& x:samples) {
+        x-=(float)mean;
+        energy+=(double)x*x;
+    }
+    if(energy/count < .000004) return 0.f; // no guitar input
+    // YIN-style cumulative mean normalized difference: robust for a clean
+    // guitar DI and inexpensive because it runs only on the UI timer.
+    const int minLag=std::max(2,(int)(tunerCaptureRate/1100.f));
+    const int maxLag=std::min(350,(int)(tunerCaptureRate/45.f));
+    const int window=(int)count-maxLag-1;
+    if(window<1024 || minLag>=maxLag)return 0.f;
+    std::array<double,351> score{};
+    for(int tau=1;tau<=maxLag;++tau) {
+        double distance=0.;
+        for(int j=0;j<window;++j) {
+            const double d=(double)samples[(size_t)j]-(double)samples[(size_t)(j+tau)];
+            distance+=d*d;
+        }
+        score[(size_t)tau]=distance;
+    }
+    double cumulative=0.;
+    int found=0;
+    double best=.31;
+    for(int tau=1;tau<=maxLag;++tau) {
+        cumulative+=score[(size_t)tau];
+        if(tau<minLag)continue;
+        const double normalized=score[(size_t)tau]*tau/(cumulative+1.e-14);
+        if(normalized<.16) {
+            found=tau;
+            break;
+        }
+        if(normalized<best) {
+            best=normalized;
+            found=tau;
+        }
+    }
+    if(found<=0 || (score[(size_t)found]*found/(1.e-14+
+            [&]() {
+                double accum=0.;
+                for(int j=1;j<=found;++j)accum+=score[(size_t)j];
+                return accum;
+            }()))>.31)return 0.f;
+    // Refine the period to a fraction of a sample using a local parabola.
+    double period=(double)found;
+    if(found>1 && found<maxLag) {
+        const double left=score[(size_t)(found-1)];
+        const double center=score[(size_t)found];
+        const double right=score[(size_t)(found+1)];
+        const double denom=left-2*center+right;
+        if(std::abs(denom)>1.e-12)
+            period+=std::max(-.5,std::min(.5,(left-right)/denom*.5));
+    }
+    const float frequency=(float)(tunerCaptureRate/period);
+    return (std::isfinite(frequency) && frequency>=45.f && frequency<=1100.f)
+        ?frequency:0.f;
+}
+
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter(){return new SishhinDSPAudioProcessor();}
