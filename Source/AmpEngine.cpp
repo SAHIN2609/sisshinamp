@@ -165,10 +165,15 @@ float AmpEngine::processSample(int chIndex,float x,const Parameters& p) noexcept
         const float wet=x*comp*(1.3f+3.5f*amount)*(.4f+p.pedals[0][2]*.12f);
         x=x*(1-p.pedals[0][1]/10.f)+wet*(p.pedals[0][1]/10.f);
     }
-    if(p.pedalOn[2]) { // WEIGHT: low-mid saturation + boost
-        float warm=soft(x*(1.f+p.pedals[2][0]*.18f));
-        x+=warm*(p.pedals[2][1]/10.f)*.32f;
-        x*=1.f+p.pedals[2][2]*.12f;
+    if(p.pedalOn[2]) { // WEIGHT: clean low-body lift, no extra fuzz stage
+        const float amount=clamp(p.pedals[2][0],0.f,10.f)/10.f;
+        const float blend=clamp(p.pedals[2][1],0.f,10.f)/10.f;
+        const float level=clamp(p.pedals[2][2],0.f,10.f)/10.f;
+        // Blend a gently rounded signal with the dry attack, then limit
+        // the boost to less than 2 dB so the following amp does not clip.
+        const float softened=soft(x*(.64f+.14f*amount))*(1.f/(.64f+.14f*amount));
+        x=(1.f-.24f*blend)*x+(.24f*blend)*softened;
+        x*=1.f+level*.16f;
     }
     const int amp=std::max(0,std::min(2,p.amp));
     if(p.pedalOn[1]) { // EDGE: overdrive; Taki uses a restrained TS-style pre-boost
@@ -185,9 +190,12 @@ float AmpEngine::processSample(int chIndex,float x,const Parameters& p) noexcept
         }
     }
     const float drive=clamp(p.gain,0.f,10.f)/10.f;
-    if(amp==0) { // SAKURA CLEAN: high headroom, soft knee, preserved attack
-        x=soft(x*(1.f+drive*2.7f)) / (1.f+drive*.55f);
-        x*=.78f;
+    if(amp==0) { // SAKURA CLEAN: genuine headroom, no gain-stacked fuzz
+        // Output stays approximately linear across normal guitar DI levels.
+        // Only large peaks gently reach a single soft knee.
+        const float cleanGain=1.f+drive*.90f;
+        const float driven=x*cleanGain;
+        x=(soft(driven*.36f)/.36f)*.75f;
     } else if(amp==1) { // TAKI METAL: tight high-gain preamp, not full-band fuzz
         // Preserve the initial pick transient, then high-pass the DI before
         // the distortion stages to remove sub-bass intermodulation mud.
@@ -203,9 +211,12 @@ float AmpEngine::processSample(int chIndex,float x,const Parameters& p) noexcept
         // Small dry transient plus controlled post shaping keeps note definition.
         x=ch.metalPostLow.tick(stage2*.57f+attack*(.065f-.03f*drive));
         x=ch.metalBite.tick(x);
-    } else { // TAKE THICK: asymmetrical, low-mid-rich saturation
-        const float warm=soft(x*(2.3f+drive*7.5f)+.17f)-soft(.17f);
-        x=soft(warm*1.7f+x*.3f)*.64f;
+    } else { // TAKE THICK: full low mids and warm dynamics, not fuzz
+        // A restrained single soft knee and substantial direct blend retain
+        // string definition. The dedicated body/tone filters do the thickening.
+        const float warmGain=1.12f+drive*.86f;
+        const float warmer=soft(x*warmGain*.49f)/.49f;
+        x=(warmer*.66f+x*.34f)*.72f;
     }
     x=ch.bass.tick(x);
     x=ch.mid.tick(x);
